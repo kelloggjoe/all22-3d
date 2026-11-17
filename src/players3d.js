@@ -163,6 +163,7 @@ export class Athlete {
     this.wasDown = false; this.oneShotUntil = 0; this.t = 0;
     this.moves = new FootballMoves(this);
     this.ballGripped = false;
+    this.catchTmp = new THREE.Vector3();
     this.play("Idle_Loop", 0);
   }
   dressUp(kit, num, look) {
@@ -308,12 +309,16 @@ export class Athlete {
       this.ballGripped = true;
     } else if (!down && p.hasBall && w.phase === "live" && !mv) {
       const pocket = p === w.qb && !w.handedOff && !w.losCrossed && w.call.off?.type === "pass";
-      const weight = p.anim === "catch" ? THREE.MathUtils.smoothstep(p.animT, 0.12, 0.28) : 1;
+      const weight = p.anim === "catch" ? THREE.MathUtils.smoothstep(p.animT, 0.22, 0.4) : 1;
       this.moves.carry(pocket, weight);
       this.ballGripped = weight > 0.4;
     }
+    // a pass on its way to him: both hands go to the ball (extra.catchAt: its spot in the stadium, extra.catchW)
+    if (extra.catchAt && extra.catchW > 0 && !down) this.moves.catchAt(this.root.worldToLocal(this.catchTmp.copy(extra.catchAt)), extra.catchW);
     if (this.recover) this.applyRecover(dt);
   }
+  // the ball between his palms (just after a catch)
+  palmsWorld(out) { const l = this.bones.hand_l, r = this.bones.hand_r; l.getWorldPosition(out); r.getWorldPosition(this.catchTmp); return out.add(this.catchTmp).multiplyScalar(0.5); }
   // getting up after a ragdoll: from the pose and spot it left him in, blend back into the animation (the root eases
   // from where he lay to where the sim has him)
   beginRecover(duration = 0.45) {

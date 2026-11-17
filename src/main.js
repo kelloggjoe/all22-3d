@@ -116,12 +116,10 @@ class App {
     this.ui = new UI(document.getElementById("ui"), this);
     this.ui.call = new CallPanel(this.ui, this);
     this.hud = new HudLogic(this);
-    this.settings = { quarter: RULES.QUARTER_SEC, accel: RULES.ACCEL, difficulty: 3, cam: "pro", camD: "pro", sound: true, sprintMode: "hold", characters: "kooky" };
+    this.settings = { quarter: RULES.QUARTER_SEC, accel: RULES.ACCEL, difficulty: 3, cam: "pro", camD: "pro", sound: true, sprintMode: "hold" };
     try { Object.assign(this.settings, JSON.parse(localStorage.getItem(SKEY) || "{}")); } catch (_) { /* defaults */ }
     if (!RULES.QUARTER_OPTS.includes(this.settings.quarter)) this.settings.quarter = RULES.QUARTER_SEC;
-    if (!["kooky", "classic"].includes(this.settings.characters)) this.settings.characters = "kooky";
-    if (params.get("characters")) this.settings.characters = params.get("characters") === "classic" ? "classic" : "kooky"; // (tests)
-    this.r.characters = this.settings.characters;
+    delete this.settings.characters; // (a save from when the human players were an option)
     this.input.setSprintMode(this.settings.sprintMode);
     this.cam.mode = this.settings.cam; this.cam.modeD = this.settings.camD;
     this.mode = "title"; this.world = null; this.attract = null; this.paused = false; this.replayActive = false;
@@ -150,7 +148,6 @@ class App {
     if (k === "cam") this.cam.mode = v;
     if (k === "camD") this.cam.modeD = v;
     if (k === "sprintMode") this.input.setSprintMode(v);
-    if (k === "characters") { this.r.characters = v; this.r.rebuildAthletes(); }
   }
   toggleMute() { this.audio.unlock(); this.setSetting("sound", this.audio.muted); this.audio.setMuted(!this.settings.sound); this.ui.toast(this.settings.sound ? "SOUND ON" : "SOUND OFF"); }
   toggleFFBoost() {}
@@ -379,13 +376,7 @@ class App {
     if (!this.paused && !this.frozen) {
       if (this.hitStop > 0) this.hitStop -= dtr;
       else {
-        let slow = 1;
-        const bc = w.ball.carrier;
-        if (!isAttract && w.phase === "live" && bc && w.ball.state === "held") {
-          const toGo = bc.side === "O" ? 100 - bc.x : bc.x;
-          if (toGo < 6 && toGo > 0) { let near = 99; for (const p of w.players) if (p.side !== bc.side && p.canAct) near = Math.min(near, p.distTo(bc.x, bc.y)); if (near > 2.6) slow = 0.45; }
-        }
-        this.acc += dtr * slow * (isAttract ? 1 : Number(params.get("speed") || 1));
+        this.acc += dtr * (isAttract ? 1 : Number(params.get("speed") || 1));
         let steps = 0;
         while (this.acc >= DT && steps < 12) {
           w.update(DT);

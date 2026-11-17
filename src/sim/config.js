@@ -60,6 +60,12 @@ export const PHYS = {
   // the heavier he is than the tackler: (speed − FROM) × K yd/s, at most MAX, times √(his kg / the tackler's) in
   // 0.7–1.5. The tackler slides that off while he's down (×0.86 a step): about a yard at full speed, nothing at a jog
   TRUCK_FLING: { FROM: 3.5, K: 2.6, MAX: 10 },
+  // (Ragdoll Football) a dive's launch on his momentum: CARRY × his speed along the dive + PUSH (yd/s), LIFT (LIFT_D
+  // for a tackler) + LIFT_K × speed up; a pancake / stiff arm's shove (yd/s); a giant head's pull on a hit stick
+  DIVE: { CARRY: 1.15, PUSH: 1.5, LIFT: 2.2, LIFT_D: 1.2, LIFT_K: 0.26 }, PANCAKE_PUSH: 4.2, STIFF_PUSH: 4.5, HEAD_TARGET: 0.09,
+  // dominoes: a body flying faster than FROM yd/s knocks over whoever he hits (odds K per yd/s over FROM, × the weight
+  // ratio's square root, ÷ the victim's footing), passing on KEEP of his speed; a knocked man is down DOWN + DOWN_K × speed
+  DOMINO: { FROM: 3, K: 0.2, MIN: 0.15, MAX: 0.95, KEEP: 0.65, DOWN: 0.55, DOWN_K: 0.05, GAP: 0.15, AGAIN: 0.7 },
   MOVE_COOLDOWN: 1.2,
   GRAVITY: 13, // yd/s^2, a little floaty-arcade
   BULLET_SPEED: [19, 27], // by arm 0..1

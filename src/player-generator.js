@@ -1,4 +1,5 @@
 import { NUMBERS, ratingsFor, roleOf } from "./sim/ratings.js";
+import { kookyDNA, applyBody } from "./body.js";
 
 // Stat archetypes by role: [hp, atk, def, spa, spd, spe, kg, m]. atk = strength, def = blocking/anchor,
 // spa = arm/vision, spd = hands/awareness, spe = speed, kg/m = body size.
@@ -102,7 +103,7 @@ export function generatePlayer({ slot, scheme, teamKey, base, boost, rng, used }
   let full;
   do { full = `${rng.pick(FIRST)} ${rng.pick(LAST)}`; } while (used.has(full));
   used.add(full);
-  return {
+  const player = {
     slot, id: `${teamKey}-${slot}`, name: full.split(" ").at(-1), full, num: NUMBERS[slot], level: 15, star: Number(star),
     nickname: rng.chance(0.65) ? rng.pick(NICKNAMES) : null, style,
     trait: traitKey ? { key: traitKey, name: traitKey.replace(/-/g, " ").toUpperCase() } : null,
@@ -112,4 +113,8 @@ export function generatePlayer({ slot, scheme, teamKey, base, boost, rng, used }
       stripe: rng.int(0, 2), visor: rng.chance(0.24), socks: rng.int(0, 2), gloves: rng.int(0, 2),
     },
   };
+  // his body: the look, and what it does on the field
+  player.dna = kookyDNA(player);
+  player.r = applyBody(player.r, player.dna);
+  return player;
 }

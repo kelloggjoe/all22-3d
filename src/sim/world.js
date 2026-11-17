@@ -1044,6 +1044,7 @@ export class World {
     P.ballStep(this, dt);
     if (this.phase !== "live") return;
     P.tackles(this, dt);
+    P.dominoes(this);
     if (this.phase !== "live") return;
     this.checkRules();
     if (this.t > RULES.MAX_PLAY_SEC && this.phase === "live") {

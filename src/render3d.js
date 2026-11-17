@@ -10,7 +10,7 @@ import { PixelStadium, jumboInfo } from "./pixel-stadium.js";
 import { THROW_END, throwReleaseTime } from "./football-moves.js";
 
 const v3 = new THREE.Vector3();
-const BIG = new Set(["truck", "hit", "stiff", "pancake"]); // launches that take over from a lesser fall
+const BIG = new Set(["truck", "hit", "stiff", "pancake", "domino"]); // launches that take over from a lesser fall
 const lerp = (a, b, t) => a + (b - a) * t;
 
 function goalPost(X, dir) {
@@ -115,7 +115,7 @@ export class Renderer3D {
       const group = this.uniforms[p.teamKey];
       const key = `${look.skin ?? 0}/${look.socks ?? 0}/${look.gloves ?? 0}`;
       if (!group.has(key)) group.set(key, uniformMaterial(kit, look));
-      a = new Athlete(group.get(key), kit, { num: p.num, look, m: info.sp?.m, kg: p.r.kg, kooky: this.characters === "kooky" ? kookyDNA(info) : null });
+      a = new Athlete(group.get(key), kit, { num: p.num, look, m: info.sp?.m, kg: p.r.kg, kooky: info.dna || kookyDNA(info) });
       this.athletes.set(p, a);
       this.scene.add(a.root);
     }
@@ -125,13 +125,13 @@ export class Renderer3D {
   setPlayerPreview(player, kit) {
     this.clearPlayerPreview();
     const material = uniformMaterial(kit, player.look);
-    const athlete = new Athlete(material, kit, { num: player.num, look: player.look, m: player.sp.m, kg: player.sp.kg, kooky: this.characters === "kooky" ? kookyDNA(player) : null });
+    const athlete = new Athlete(material, kit, { num: player.num, look: player.look, m: player.sp.m, kg: player.sp.kg, kooky: player.dna || kookyDNA(player) });
     athlete.root.position.set(40, 0, -MID_Y);
     this.scene.add(athlete.root);
     this.preview = { athlete, material, time: 0 };
   }
 
-  // CLASSIC ↔ KOOKY: drop every athlete; athleteFor builds them again in the new style on the next frame
+  // drop every athlete: athleteFor builds them again on the next frame
   rebuildAthletes() {
     for (const p of [...(this.flops || new Map()).keys()]) this.endFlop(p, false);
     if (this.tackle) { this.tackle.physics.restore(); this.tackle = null; }
@@ -196,6 +196,7 @@ export class Renderer3D {
       w.bus.on("pancake", (e) => knock(e.defender, "pancake", e.blocker)),
       w.bus.on("brokenTackle", (e) => { if (e.move !== "truck" && e.move !== "god") knock(e.tackler, e.move === "stiff" ? "stiff" : e.move === "juke" || e.move === "spin" ? "ankles" : "bounce", e.carrier); }),
       w.bus.on("dive", (e) => knock(e.player, "dive")),
+      w.bus.on("knockover", (e) => knock(e.player, "domino", e.by, e.speed)),
       w.bus.on("slide", (e) => knock(e.player, "slide")),
     ];
     const stopThrows = w.bus.on("throw", ({ qb, ball, lob, spike }) => {
@@ -249,9 +250,11 @@ export class Renderer3D {
         return { velocity: own.clone().multiplyScalar(0.85).setY(0.3), drive: fwd.clone().multiplyScalar(2).addScaledVector(side, 1.4), planted: 0.9, drop: 2, mass: m };
       }
       case "bounce": return { velocity: away.clone().multiplyScalar(1.6 * ratio).addScaledVector(own, 0.3).setY(0.4), drive: away.clone().multiplyScalar(2.2), planted: 0.7, drop: 1.2, mass: m };
-      case "dive": { // a superman dive: flat out along the move, a little air under him
-        const carrier = p.hasBall;
-        return { velocity: k.dir.clone().multiplyScalar(Math.max(sp * 1.05, 4.5)).setY(carrier ? 2.4 : 1.7), drive: k.dir.clone().multiplyScalar(5), planted: 0.12, drop: 2.6, mass: m, speed: 0.95 };
+      case "dive": // a superman dive on his own momentum: the sim's launch (out and up), the body laid out flat along it
+        return { velocity: k.vel.clone(), drive: k.dir.clone().multiplyScalar(4 + sp * 0.25), planted: 0.12, drop: 2.6, mass: m, speed: 1 };
+      case "domino": { // bowled over by a flying body: along that body's line, harder the faster it was going
+        const push = k.fromVel && H(k.fromVel).lengthSq() > 0.01 ? H(k.fromVel).normalize() : away, f = k.force;
+        return { velocity: push.clone().multiplyScalar(f * 0.6).setY(0.6 + f * 0.12), drive: push.multiplyScalar(2 + f * 0.35), planted: 0.7, drop: 0.7, mass: m };
       }
       case "slide": return { velocity: fwd.clone().multiplyScalar(Math.max(sp * 0.9, 3)).setY(0.2), drive: fwd.clone().multiplyScalar(-2.8), planted: 0, drop: 1.4, mass: m, speed: 0.95 };
       default: return { velocity: own.clone().multiplyScalar(0.7).setY(0.3), drive: fwd.clone().multiplyScalar(2.6), planted: 0.6, drop: 1.6, mass: m }; // a trip / a whiff
@@ -389,6 +392,23 @@ export class Renderer3D {
       a.fX = flipC ? -fX : fX; a.fY = flipC ? -fY : fY;
       ex.stance = w.phase === "presnap" && /^(LT|LG|C|RG|RT|DE1|DE2|NT|ILB2)$/.test(p.slot) && w.phaseT > 0.6;
       ex.throw = p === shot?.qb ? shot : null;
+      // the receiver of a pass in the air reaches for it as it comes in (and, for a beat after the catch, holds it out)
+      ex.catchAt = null; ex.catchW = 0;
+      if (ballAir && w.ball.target === p) {
+        const b = w.ball, d = Math.hypot(b.x - p.x, b.y - p.y);
+        if (d < 4.5) {
+          ex.catchAt = this.catchSpot || (this.catchSpot = new THREE.Vector3());
+          ex.catchAt.set(flipC ? 100 - b.x : b.x, Math.max(0.6, b.z || 0), flipC ? b.y - FIELD_W : -b.y);
+          ex.catchW = THREE.MathUtils.smoothstep(4.5 - d, 0, 3);
+        }
+      } else if (p.hasBall && p.anim === "catch" && p.animT < 0.4 && w.phase === "live") {
+        const ath0 = this.athleteFor(p);
+        ex.catchAt = this.catchSpot || (this.catchSpot = new THREE.Vector3());
+        ath0.chestWorld(ex.catchAt); ex.catchAt.y -= 0.12;
+        const fwd = Math.sin(ath0.heading), fwz = Math.cos(ath0.heading);
+        ex.catchAt.x += fwd * 0.45; ex.catchAt.z += fwz * 0.45;
+        ex.catchW = 1 - THREE.MathUtils.smoothstep(p.animT, 0.22, 0.4);
+      }
       p.animT = (p.animT || 0) + dt;
       ath.sync(p, a, w, dt, ex);
     }
@@ -402,7 +422,9 @@ export class Renderer3D {
     if (b.state === "held" && b.carrier && this.athletes.get(b.carrier)) {
       const ath = this.athletes.get(b.carrier);
       const ragdoll = (b.carrier === tackle?.carrier && tackle.physics.carrier) || this.flops.has(b.carrier);
-      if (ragdoll || ath.ballGripped) ath.gripWorld(B.position, B.quaternion);
+      const caught = !ragdoll && b.carrier.anim === "catch" && b.carrier.animT < 0.3 && w.phase === "live";
+      if (caught) { ath.palmsWorld(B.position); B.rotation.set(0, ath.heading + Math.PI / 2, 0); }
+      else if (ragdoll || ath.ballGripped) ath.gripWorld(B.position, B.quaternion);
       else {
         ath.handWorld(B.position);
         B.rotation.set(0, ath.heading, 0); B.rotateX(-0.5);

@@ -18,7 +18,7 @@ To recreate a league, add `?roster=1234` to the URL with that league's seed.
 - `src/sim/` football simulation, playbook, and input
 - `src/teams.js` eight fictional teams and their kits
 - `src/player-generator.js` seeded human players with position profiles, physical builds, traits, and gear
-- `src/kooky.js` KOOKY characters: DNA from each player's ratings plus seeded nonsense, built as toon blobs with ink outlines on the same skeleton (CHARACTERS on the game options and in the Player Generator switches CLASSIC / KOOKY)
+- `src/kooky.js` the players' looks: DNA from each player's ratings plus seeded nonsense, built as toon blobs with ink outlines on the shared skeleton
 - `src/players3d.js` the athletes: model, uniform shader, helmet, pads, numbers, animation state machine
 - `src/render3d.js` stadium, field, crowd, lights, ball, play art, and the sim camera → three.js camera
 - `src/ui.js`, `src/playcall.js`, `src/menus.js` HUD, play calling, screens

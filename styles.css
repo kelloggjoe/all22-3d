@@ -177,6 +177,8 @@ body.ready .boot { opacity: 0; pointer-events: none; }
 .generator-stats dd { margin: 2px 0 0; white-space: nowrap; font: 600 20px/1.05 var(--disp); }
 .generator-trait { margin: 12px 0 0; font: 600 14px var(--text); color: #ced8e3; }
 .generator-trait strong { margin-left: 5px; color: var(--ink); }
+.generator-trait + .generator-trait { margin-top: 6px; }
+.generator-trait span { margin-left: 6px; color: #9fb0c2; font-weight: 500; }
 .generator-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 16px; }
 .generator-actions .mi { min-height: 45px; margin: 0; padding: 8px 10px; text-align: center; font-size: 15px; letter-spacing: .045em; background: #243245; }
 .generator-actions .go { background: var(--hi); }

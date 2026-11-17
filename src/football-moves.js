@@ -180,6 +180,17 @@ export class FootballMoves {
     }
   }
 
+  // both hands to the ball (at: the ball in the root's space, yards): palms either side of it, elbows out and down
+  catchAt(at, weight) {
+    if (weight <= 0) return;
+    const s = this.scale / 0.9144; // (yards per model meter: hand() works in meters × scale)
+    for (const [chain, side] of [[ARM_R, -1], [ARM_L, 1]]) {
+      goal.set(at.x + side * 0.085 * s, at.y, at.z - 0.03 * s);
+      hint.set(at.x + side * 0.45 * s, at.y - 0.35 * s, at.z * 0.4);
+      this.solve(chain, goal, hint, weight);
+    }
+  }
+
   throw(shot, time, speed) {
     const release = throwReleaseTime(shot);
     const u = time <= release ? 0.53 * time / release : 0.53 + 0.47 * clamp((time - release) / (THROW_END - release));

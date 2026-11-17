@@ -49,6 +49,7 @@ export class Player {
     this.flash = 0; this.celebrate = 0;
     this.faceX = 1; this.faceY = 0; // last meaningful heading (offense coords)
     this.lie = 0; // lying-down rotation (0, 1 = 90°)
+    this.knockT = -9; // when a flying body last knocked him over (dominoes: one knock per contact)
     this.fly = 0; // knocked flying (a truck, a pancake): he slides farther before he stops (s left)
   }
   get speedNow() { return Math.hypot(this.vx, this.vy); }

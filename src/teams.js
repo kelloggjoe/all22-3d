@@ -2,6 +2,7 @@
 import { ALL_SLOTS, SLOTS_OFF, SLOTS_DEF, ratingsFor, fitOf, aiFor } from "./sim/ratings.js";
 import { createRng } from "./sim/rng.js";
 import { generatePlayer } from "./player-generator.js";
+import { applyBody } from "./body.js";
 
 // Original, fictional franchises. colors: jersey, accent, helmet, pants. style/aggression drive the CPU coach.
 export const TEAM_DEFS = [
@@ -39,7 +40,7 @@ export function makeTeam(def, opts = {}) {
 }
 
 // a player re-rated at another spot (the World's rateSlot: coach.js substitutions)
-export const rateSlot = (p, slot) => { const info = p.team.players[p.slot]; return info && info.sp ? ratingsFor(info.sp, slot, p.team.scheme, p.team.boost || 1) : null; };
+export const rateSlot = (p, slot) => { const info = p.team.players[p.slot]; return info && info.sp ? applyBody(ratingsFor(info.sp, slot, p.team.scheme, p.team.boost || 1), info.dna) : null; };
 export function overall(t) {
   let s = 0;
   for (const slot of ALL_SLOTS) s += fitOf(t.players[slot].sp, slot, t.scheme);

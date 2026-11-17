@@ -57,10 +57,11 @@ export function movePlayers(w, dt) {
     if (p.engageCool > 0) p.engageCool -= dt;
     if (p.slow > 0) p.slow -= dt;
     if (p.flash > 0) p.flash -= dt;
-    if (p.move) { p.moveT += dt; if (p.moveT > moveDur(p.move)) endMove(w, p); }
+    if (p.move) { p.moveT += dt; if (p.moveT > moveDur(p.move) && !(p.move === "dive" && p.z > 0)) endMove(w, p); } // (a dive: until he lands)
     // vertical (jumps, dives)
     if (p.z > 0 || p.vz) { p.vz -= PHYS.GRAVITY * dt; p.z += p.vz * dt; if (p.z <= 0) { p.z = 0; p.vz = 0; } }
     if (p.engaged) continue; // engaged pairs move in blocking()
+    if (p.move === "dive" && p.z > 0) { p.x += p.vx * dt; p.y += p.vy * dt; continue; } // flying: momentum only
     const traitSpeed = p.trait && (p.trait.key === "quick-feet" || (p.trait.key === "return-ace" && w.playType !== "normal")) ? 1.05 : 1;
     const routeSpeed = p.trait && p.trait.key === "route-runner" && p.as && p.as.kind === "route" ? 1.05 : 1;
     const relentless = p.trait && p.trait.key === "relentless" && w.phaseT > 4 ? 1.04 : 1;
@@ -123,10 +124,13 @@ export function startMove(w, p, move, dirX = 0, dirY = 0) {
   p.moveDX = dirX / m; p.moveDY = dirY / m;
   p.moveCool = move === "dive" || move === "hitstick" ? 0.6 : PHYS.MOVE_COOLDOWN;
   if (move === "swat") { p.vz = 4.6; p.z = 0.01; }
-  if (move === "dive" && p.hasBall) {
-    // ball-carrier dive: a forward lunge that ends the run
-    p.vx = p.moveDX * p.r.speed * 1.1; p.vy = p.moveDY * p.r.speed * 1.1;
-    p.vz = 2.2; p.z = 0.01;
+  if (move === "dive") {
+    // a dive launches him on his own momentum: the faster he's going, the farther and higher he flies (a carrier's run
+    // ends where he lands: world.js; a tackler who misses is on the ground where he lands: endMove)
+    const sp = Math.hypot(p.vx, p.vy), along = Math.max(0, p.vx * p.moveDX + p.vy * p.moveDY);
+    const out = Math.max(along, sp * 0.6) * PHYS.DIVE.CARRY + PHYS.DIVE.PUSH;
+    p.vx = p.moveDX * out; p.vy = p.moveDY * out;
+    p.vz = (p.hasBall ? PHYS.DIVE.LIFT : PHYS.DIVE.LIFT_D) + sp * PHYS.DIVE.LIFT_K; p.z = 0.01;
   }
   // a swat attempt is a "jump"; the "swat" event fires once per ball, when a pass is actually batted (resolveCatch)
   w.bus.emit(move === "stiff" ? "stiffArm" : move === "hitstick" ? "hitStick" : move === "swat" ? "jump" : move, { player: p });
@@ -210,7 +214,7 @@ export function tryEngage(w, blocker, def) {
   // pancake: huge mismatch, small chance
   if (ratio > 1.35 && w.rng.chance(0.05 + (ratio - 1.35) * 0.25)) {
     release(blocker, def);
-    def.down = 1.3; def.lie = 1; def.vx = (def.x - blocker.x) * 2; def.vy = (def.y - blocker.y) * 2; def.fly = 0.4;
+    { const dx = def.x - blocker.x, dy = def.y - blocker.y, m = Math.hypot(dx, dy) || 1, k = PHYS.PANCAKE_PUSH * Math.sqrt(blocker.r.kg / def.r.kg); def.down = 1.3; def.lie = 1; def.vx = (dx / m) * k; def.vy = (dy / m) * k; def.fly = 0.4; }
     w.bus.emit("pancake", { blocker, defender: def });
     if (w.statsBy) pancaked(w, blocker);
   }
@@ -310,7 +314,7 @@ export function tackles(w, dt) {
     // a defender still locked up with a blocker can only reach out and grab a carrier going right past him
     const arm = Boolean(d.engaged);
     if (arm && (d.engaged === c || d.blocking)) continue;
-    const reach = (arm ? PHYS.ARM_TACKLE_DIST : PHYS.TACKLE_DIST) + (d.move === "dive" ? 0.75 : d.move === "hitstick" ? 0.4 : 0) + c.radius * 0.3;
+    const reach = (arm ? PHYS.ARM_TACKLE_DIST : PHYS.TACKLE_DIST) * (d.r.reach || 1) + (d.move === "dive" ? 0.75 : d.move === "hitstick" ? 0.4 : 0) + c.radius * 0.3;
     const dx = c.x - d.x, dy = c.y - d.y;
     if (dx * dx + dy * dy > reach * reach) continue;
     if (c.z > 1.2) continue; // hurdling/diving over
@@ -326,7 +330,7 @@ export function tackles(w, dt) {
     if (arm) p *= PHYS.ARM_TACKLE_MULT;
     if (d.move === "dive") p += PHYS.DIVE_TACKLE_BONUS;
     const hit = d.move === "hitstick";
-    if (hit) p += PHYS.HITSTICK_BONUS - (w.rng.chance(PHYS.HITSTICK_WHIFF) ? 0.5 : 0);
+    if (hit) p += PHYS.HITSTICK_BONUS - (w.rng.chance(PHYS.HITSTICK_WHIFF) ? 0.5 : 0) + ((c.r.head || 1.15) - 1.15) * PHYS.HEAD_TARGET; // (a giant head: a hit-stick magnet)
     // carrier moves
     const H = hardTackle(w, d, c); // (PRO to LEGEND: the CPU's tackler doesn't bite as often on the human's moves)
     if (c.move === "juke") p -= PHYS.JUKE_EVADE * (0.7 + c.r.agility / 300) * (c.r.ghost ? 1.05 : 1) * (H ? HARD.JUKE[H - 1] : 1);
@@ -386,9 +390,41 @@ export function tackles(w, dt) {
       w.bus.emit("truck", { player: c, defender: d, fling: push });
       if (w.squad) w.truckHit(d, c);
     }
-    else if (c.move === "stiff") { d.stun = 0.8; d.vx = -dx * 2; d.vy = -dy * 2; }
+    else if (c.move === "stiff") { const m = Math.hypot(dx, dy) || 1; d.stun = 0.8; d.vx = (-dx / m) * PHYS.STIFF_PUSH; d.vy = (-dy / m) * PHYS.STIFF_PUSH; d.fly = 0.3; }
     else if (c.move !== "juke" && c.move !== "spin") c.slow = 0.22;
     w.bus.emit("brokenTackle", { tackler: d, carrier: c, move: c.move });
+  }
+}
+
+// ---------- Dominoes ----------
+// A body flying through the play (knocked flying by a truck, a pancake, a stiff arm or another domino, or diving full
+// out) knocks over whoever he crashes into: the faster and heavier he is, the likelier; big feet keep a man up. He
+// passes on part of his speed, so one big hit can bowl over a row of men. The ball carrier never goes down to debris
+// (a diver who reaches him is a tackle: tackles()). Seeded like everything else (w.rng): a game replays the same.
+export function dominoes(w) {
+  if (w.phase !== "live") return;
+  const D = PHYS.DOMINO, ps = w.players, c = w.ball.carrier;
+  for (const p of ps) {
+    const flying = (p.fly > 0 && (p.down > 0 || p.stun > 0)) || (p.move === "dive" && !p.hasBall && p.z > 0);
+    if (!flying) continue;
+    const sp = Math.hypot(p.vx, p.vy);
+    if (sp < D.FROM) continue;
+    for (const q of ps) {
+      if (q === p || q === c || !q.canAct || w.t - q.knockT < D.AGAIN) continue;
+      const dx = q.x - p.x, dy = q.y - p.y, gap = p.radius + q.radius + D.GAP;
+      if (dx * dx + dy * dy > gap * gap) continue;
+      if ((dx * p.vx + dy * p.vy) <= 0) continue; // only what's in front of him
+      q.knockT = w.t;
+      const odds = clamp((sp - D.FROM) * D.K * Math.sqrt(p.r.kg / q.r.kg) / (q.r.footing || 1), D.MIN, D.MAX);
+      if (!w.rng.chance(odds)) { q.stun = Math.max(q.stun, 0.25); p.vx *= 0.5; p.vy *= 0.5; w.bus.emit("dominoHold", { player: q, by: p }); break; }
+      if (q.engaged) release(q, q.engaged);
+      q.move = null; q.moveT = 0;
+      q.down = D.DOWN + D.DOWN_K * sp; q.lie = 1; q.fly = 0.35;
+      q.vx = p.vx * D.KEEP; q.vy = p.vy * D.KEEP;
+      p.vx *= 1 - D.KEEP * 0.6; p.vy *= 1 - D.KEEP * 0.6;
+      w.bus.emit("knockover", { player: q, by: p, speed: sp });
+      break; // one man at a time: the next contact comes on the next step
+    }
   }
 }
 
@@ -841,7 +877,7 @@ const outOfBounds = (w) => { w.ball.kind = "inc"; w.bus.emit("incomplete", { oob
 export function resolveCatch(w) {
   const b = w.ball, rec = b.target;
   if (!rec) { b.kind = "inc"; return; }
-  const reach = PHYS.CATCH_REACH;
+  const reach = PHYS.CATCH_REACH * (rec.r.reach || 1); // (long arms reach farther)
   if (b.z > 3.6) { b.kind = "inc"; w.bus.emit("incomplete", { overthrow: true }); return; }
   // nearest defender who can play the ball
   let dfd = null, dd = 99;
