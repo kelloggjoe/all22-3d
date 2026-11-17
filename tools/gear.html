@@ -1,0 +1,41 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Gear check</title>
+<style>body{margin:0;background:#1d2a22}</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"}}</script>
+</head><body>
+<script type="module">
+import * as THREE from "three";
+import { loadAthleteAssets, uniformMaterial, Athlete } from "../src/players3d.js";
+const r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(innerWidth, innerHeight); r.setPixelRatio(devicePixelRatio); document.body.append(r.domElement);
+r.toneMapping = THREE.ACESFilmicToneMapping; r.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x24382b);
+const cam = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.1, 200);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x334433, 1.4)); const d = new THREE.DirectionalLight(0xffffff, 2.2); d.position.set(4, 8, 6); scene.add(d);
+await loadAthleteAssets("../assets/models/");
+const kit = { jersey: "#123a6b", accent: "#f2b134", helmet: "#123a6b", pants: "#e9e6dc", number: "#ffffff" };
+const kit2 = { jersey: "#f4f4f0", accent: "#c24a1b", helmet: "#2a2420", pants: "#e3d3b8", number: "#c24a1b" };
+const mats = [uniformMaterial(kit, 0), uniformMaterial(kit, 1)], mats2 = [uniformMaterial(kit2, 0), uniformMaterial(kit2, 1)];
+const people = [];
+const poses = [["stance", {}], ["run", { vx: 7 }], ["block", { engaged: 1 }], ["back", {}]];
+poses.forEach(([n, o], i) => {
+  const A = new Athlete(i % 2 ? mats2 : mats, i % 2 ? kit2 : kit, { num: [12, 88, 71, 24][i], skin: i % 2, m: 1.9, kg: [100, 92, 140, 90][i] });
+  scene.add(A.root); people.push([A, n, o, i]);
+});
+const ax = new THREE.AxesHelper(0.3); people[3][0].bones.Head.add(ax);
+const W = { phase: "live" };
+const clk = new THREE.Clock();
+const mode = new URLSearchParams(location.search).get("v") || "front";
+r.setAnimationLoop(() => {
+  const dt = Math.min(0.05, clk.getDelta());
+  for (const [A, n, o, i] of people) {
+    const p = { down: 0, lie: 0, move: null, moveT: 0, anim: "", animT: 9, engaged: o.engaged ? {} : null, blocking: false, celebrate: 0, z: 0, hasBall: false, side: "O", slot: "QB" };
+    const a = { X: i * 1.6, Y: 0, fX: n === "back" ? -1 : 1, fY: 0, vx: o.vx || 0, vy: 0 };
+    if (mode === "front") { a.fX = 0; a.fY = -1; if (n === "back") a.fY = 1; }
+    A.sync(p, a, W, dt, { stance: n === "stance" });
+  }
+  r.render(scene, cam);
+});
+if (mode === "front") { cam.position.set(2.4, 1.4, 9); cam.lookAt(2.4, 1.1, 0); }
+else { cam.position.set(9, 1.6, 2.5); cam.lookAt(2.4, 1.1, 0); }
+window.__ok = true; window.cam = cam; window.people = people; window.THREE = THREE;
+</script></body></html>

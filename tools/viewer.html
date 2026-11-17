@@ -1,0 +1,30 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Model check</title>
+<style>body{margin:0;background:#223}#info{position:fixed;top:8px;left:8px;color:#fff;font:13px monospace}</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"}}</script>
+</head><body><div id="info"></div>
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { clone } from "three/addons/utils/SkeletonUtils.js";
+const r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(innerWidth, innerHeight); document.body.append(r.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x334);
+const cam = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 100); cam.position.set(3, 1.6, 4); cam.lookAt(0, 0.9, 0);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x445566, 1.2)); const d = new THREE.DirectionalLight(0xffffff, 2); d.position.set(3, 5, 2); scene.add(d);
+scene.add(new THREE.GridHelper(10, 10));
+const L = new GLTFLoader();
+const [m, a] = await Promise.all([L.loadAsync("../assets/models/player.gltf"), L.loadAsync("../assets/models/anims.glb")]);
+const box = new THREE.Box3().setFromObject(m.scene); const size = box.getSize(new THREE.Vector3());
+const names = a.animations.map((c) => c.name);
+const mixers = [];
+names.forEach((n, i) => {
+  const o = clone(m.scene); o.position.set((i % 7) * 1.2 - 3.6, 0, -Math.floor(i / 7) * 1.6); scene.add(o);
+  const mx = new THREE.AnimationMixer(o); mx.clipAction(a.animations[i]).play(); mixers.push(mx);
+});
+const bones = []; m.scene.traverse((o) => { if (o.isBone) bones.push(o.name); });
+document.getElementById("info").textContent = `size ${size.x.toFixed(2)} ${size.y.toFixed(2)} ${size.z.toFixed(2)} · clips ${names.join(" ")}`;
+window.__info = { size, names, bones: bones.length };
+const clk = new THREE.Clock();
+r.setAnimationLoop(() => { const dt = clk.getDelta(); mixers.forEach((x) => x.update(dt)); r.render(scene, cam); });
+cam.position.set(0, 4, 7); cam.lookAt(0, 0.8, -1.5);
+</script></body></html>
