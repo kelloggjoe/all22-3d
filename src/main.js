@@ -177,6 +177,7 @@ class App {
     this.kits = kitsFor(a, b);
     a.kit = this.kits.home; b.kit = this.kits.away;
     this.r.setTeams(a, b, this.kits);
+    this.r.watchTackles(w);
     this.mode = "title";
   }
   startGame(userKey, oppKey) {
@@ -194,6 +195,7 @@ class App {
     setupDifficulty(w, d);
     this.world = w;
     this.r.setTeams(team, opp, this.kits);
+    this.r.watchTackles(w);
     this.ui.setTeams(w, this.kits);
     this.ui.showHud(true);
     this.wire(bus, w);

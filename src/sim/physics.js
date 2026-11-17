@@ -349,6 +349,11 @@ export function tackles(w, dt) {
     if (w.statsBy) tried(w, d, c);
     if (w.rng.chance(p)) {
       const power = Math.hypot(d.vx, d.vy) * Math.log(5 + d.r.kg) * (hit ? 1.7 : 1);
+      const approach = {
+        carrierVx: c.vx, carrierVy: c.vy, carrierVz: c.vz,
+        tacklerVx: d.vx, tacklerVy: d.vy, tacklerVz: d.vz,
+        hit, arm, dive: d.move === "dive",
+      };
       if (w.squad) w.tackleHit(c, d, power, hit, gang); // franchise: injury rolls, the hit's toll on the legs
       // fumble?
       const fp = (PHYS.FUMBLE_BASE + (hit ? PHYS.HITSTICK_FUMBLE : 0)) * clamp(110 / (c.r.toughness + 40), 0.6, 1.6) * (w.fumbleMult || 1)
@@ -364,10 +369,10 @@ export function tackles(w, dt) {
       if (c.move === "truck") w.bus.emit("truck", { player: c, defender: d, failed: true });
       if (w.ball.kind !== "kickwait" && w.rng.chance(fp) && !w.noFumbles) {
         fumble(w, c, d);
-        w.bus.emit("tackle", { tackler: d, carrier: c, power, fumble: true });
+        w.bus.emit("tackle", { tackler: d, carrier: c, power, approach, fumble: true });
         return;
       }
-      w.bus.emit("tackle", { tackler: d, carrier: c, power });
+      w.bus.emit("tackle", { tackler: d, carrier: c, power, approach });
       w.tackled(c, d);
       return;
     }

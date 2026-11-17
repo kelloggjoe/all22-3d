@@ -4,6 +4,7 @@
 import * as THREE from "three";
 import { FIELD_W, MID_Y } from "./sim/config.js";
 import { Athlete, uniformMaterial } from "./players3d.js";
+import { Tackle3D } from "./tackle3d.js";
 
 const v3 = new THREE.Vector3();
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -145,6 +146,10 @@ export class Renderer3D {
 
   // build the stadium for a matchup (night game under the lights)
   setTeams(home, away, kits) {
+    this.stopWatchingTackles?.();
+    this.stopWatchingTackles = null;
+    this.pendingTackle = null;
+    this.tackle = null;
     if (this.stadium) { this.scene.remove(this.stadium); this.stadium.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); }
     for (const a of this.athletes.values()) this.scene.remove(a.root);
     this.athletes.clear();
@@ -232,6 +237,48 @@ export class Renderer3D {
     return a;
   }
 
+  watchTackles(w) {
+    this.stopWatchingTackles = w.bus.on("tackle", ({ carrier, tackler, approach, fumble }) => {
+      const flip = w.possession !== "home";
+      const direction = flip ? -1 : 1;
+      const position = (p) => new THREE.Vector3(flip ? 100 - p.x : p.x, p.z, flip ? p.y - FIELD_W : -p.y);
+      this.pendingTackle = {
+        play: w.playNo, carrier, tackler, fumble,
+        impact: {
+          carrierAt: position(carrier), tacklerAt: position(tackler),
+          carrierSpeed: new THREE.Vector3(direction * approach.carrierVx, approach.carrierVz, -direction * approach.carrierVy),
+          tacklerSpeed: new THREE.Vector3(direction * approach.tacklerVx, approach.tacklerVz, -direction * approach.tacklerVy),
+          carrierMass: carrier.r.kg / 100, tacklerMass: tackler.r.kg / 100,
+          hit: approach.hit, dive: approach.dive, arm: approach.arm,
+        },
+      };
+    });
+  }
+
+  syncTackle(w) {
+    const onField = w.phase === "live" || w.phase === "dead";
+    const pending = this.pendingTackle;
+    this.pendingTackle = null;
+    if (this.tackle && (!onField || w.playNo !== this.tackle.play || pending)) {
+      this.tackle.physics.restore();
+      this.tackle = null;
+    }
+    if (pending && onField && w.playNo === pending.play && w.players.includes(pending.carrier) && w.players.includes(pending.tackler)) {
+      const { carrier, tackler, impact } = pending;
+      this.tackle = { ...pending, physics: new Tackle3D(this.athleteFor(carrier), this.athleteFor(tackler), impact) };
+    }
+
+    const tackle = this.tackle;
+    if (tackle?.fumble) {
+      for (const role of ["carrier", "tackler"]) {
+        const player = tackle[role];
+        // A player can get back up or recover the ball before the fumble is whistled dead.
+        if (player === w.ball.carrier || (w.phase === "live" && player.canAct && player.move !== "dive")) tackle.physics.release(role);
+      }
+      if (!tackle.physics.carrier && !tackle.physics.tackler) this.tackle = null;
+    }
+  }
+
   // the World → the scene, once per frame
   sync(w, dt, opts) {
     const flipC = w.possession !== "home";
@@ -243,10 +290,13 @@ export class Renderer3D {
     const seen = new Set();
     const a = this.abs || (this.abs = { X: 0, Y: 0, fX: 1, fY: 0, vx: 0, vy: 0 });
     const ex = this.ex || (this.ex = { stance: false });
+    this.syncTackle(w);
+    const tackle = this.tackle;
     for (const p of w.players) {
       seen.add(p);
       const ath = this.athleteFor(p);
       ath.root.visible = true;
+      if ((p === tackle?.carrier && tackle.physics.carrier) || (p === tackle?.tackler && tackle.physics.tackler)) continue;
       a.X = flipC ? 100 - p.x : p.x; a.Y = flipC ? FIELD_W - p.y : p.y;
       a.vx = flipC ? -p.vx : p.vx; a.vy = flipC ? -p.vy : p.vy;
       // facing (render.js): the QB's eyes downfield in his drop, pass protectors face the rush, DBs backpedal facing the QB
@@ -263,14 +313,22 @@ export class Renderer3D {
       p.animT = (p.animT || 0) + dt;
       ath.sync(p, a, w, dt, ex);
     }
+    tackle?.physics.update(dt);
     for (const [p, ath] of this.athletes) if (!seen.has(p)) ath.root.visible = false;
     // the ball: in the carrier's hand, in flight, or on the turf
     const b = w.ball, B = this.ballMesh;
     const bX = flipC ? 100 - b.x : b.x, bY = flipC ? FIELD_W - b.y : b.y;
     if (b.state === "held" && b.carrier && this.athletes.get(b.carrier)) {
       const ath = this.athletes.get(b.carrier);
-      ath.handWorld(B.position);
-      B.rotation.set(0, ath.heading, 0); B.rotateX(-0.5);
+      const hand = b.carrier === tackle?.carrier && tackle.physics.carrier && ath.bones.hand_r;
+      if (hand) {
+        hand.localToWorld(B.position.set(0, 0.085, 0));
+        hand.getWorldQuaternion(B.quaternion);
+        B.rotateX(Math.PI / 2);
+      } else {
+        ath.handWorld(B.position);
+        B.rotation.set(0, ath.heading, 0); B.rotateX(-0.5);
+      }
     } else {
       B.position.set(bX, Math.max(0.12, b.z || 0), -bY);
       const vx = flipC ? -b.vx : b.vx, vy = flipC ? -b.vy : b.vy;

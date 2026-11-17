@@ -212,7 +212,8 @@ export class Athlete {
     else if (extra.stance) { clip = "Crouch_Idle_Loop"; }
     else if (p.engaged || (p.blocking && sp < 2.4 && w.phase === "live")) { clip = "Push_Loop"; rate = 1.3; pitch = 0.18; }
     else if (mv === "stiff") { clip = "Punch_Cross"; rate = 1.4; }
-    else if (mv === "hitstick" || mv === "tackle" || p.anim === "tackle") { clip = "Sprint_Loop"; pitch = 0.75; rate = 1.3; }
+    else if (mv === "hitstick") { clip = "Sprint_Loop"; pitch = 0.75; rate = 1.3; }
+    else if (mv === "dive" && !p.hasBall) { clip = "Sprint_Loop"; pitch = 0.47 * Math.min(1, moveT / 0.16); rate = 1.25; }
     else if (mv === "swat") { clip = "Jump_Start"; rate = 1.6; }
     else if (p.anim === "throw" && p.animT < 0.6) { clip = "Sword_Attack"; rate = 2.1; fade = 0.08; }
     else if (p.anim === "catch" && p.animT < 0.45) { clip = "Jump_Start"; rate = 1.8; fade = 0.08; }

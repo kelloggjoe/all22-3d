@@ -52,7 +52,7 @@
 //   shed         { blocker, defender }                       defender shed the block
 //   pancake      { blocker, defender }
 //   tackleAttempt{ tackler, carrier }
-//   tackle       { tackler, carrier, power, fumble? }        carrier brought down (power ≈ impact, 0..~20)
+//   tackle       { tackler, carrier, power, approach, fumble? } approach carries the players' velocities and type of contact
 //   brokenTackle { tackler, carrier, move }
 //   hitStick     { player } | { tackler, carrier, power, boom: true }   move start | landed big hit
 //   juke | spin | dive | slide | stiffArm  { player }        ball-carrier / defender move started
