@@ -6,93 +6,12 @@ import { FIELD_W, MID_Y } from "./sim/config.js";
 import { Athlete, uniformMaterial } from "./players3d.js";
 import { kookyDNA } from "./kooky.js";
 import { Tackle3D, Flop3D } from "./tackle3d.js";
+import { PixelStadium, jumboInfo } from "./pixel-stadium.js";
 import { THROW_END, throwReleaseTime } from "./football-moves.js";
 
 const v3 = new THREE.Vector3();
 const BIG = new Set(["truck", "hit", "stiff", "pancake"]); // launches that take over from a lesser fall
 const lerp = (a, b, t) => a + (b - a) * t;
-
-// ---------- field texture ----------
-function fieldTexture(home, away, kits) {
-  const PX = 24, W = 120 * PX, H = Math.round(FIELD_W * PX), c = document.createElement("canvas");
-  c.width = W; c.height = H;
-  const g = c.getContext("2d");
-  const x = (X) => (X + 10) * PX, y = (Y) => H - Y * PX; // canvas y down = stadium Y up (texture flips it back)
-  // mowed grass: alternating 5-yard bands, subtle noise
-  for (let i = 0; i < 24; i++) { g.fillStyle = i % 2 ? "#2f7a3a" : "#2a7034"; g.fillRect(x(-10 + i * 5), 0, 5 * PX + 1, H); }
-  const img = g.getImageData(0, 0, W, H), d = img.data;
-  for (let i = 0; i < d.length; i += 4) { const n = (Math.random() - 0.5) * 14; d[i] += n; d[i + 1] += n; d[i + 2] += n * 0.6; }
-  g.putImageData(img, 0, 0);
-  // end zones in the teams' colors, with their names
-  const lum = (hex) => { const n = parseInt(hex.slice(1), 16); return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255); };
-  const ez = (X0, kit0, name) => {
-    // a light jersey (white, ice) paints the end zone in its accent instead, so the white lettering reads
-    const kit = lum(kit0.jersey) > 185 ? { jersey: kit0.accent, accent: kit0.jersey } : kit0;
-    g.fillStyle = kit.jersey; g.globalAlpha = 0.86; g.fillRect(x(X0), 0, 10 * PX, H); g.globalAlpha = 1;
-    g.save(); g.translate(x(X0 + 5), H / 2); g.rotate(X0 < 0 ? -Math.PI / 2 : Math.PI / 2);
-    g.font = `700 ${Math.round(PX * 6.4)}px Oswald, 'Arial Narrow', sans-serif`; g.textAlign = "center"; g.textBaseline = "middle";
-    g.lineWidth = PX * 0.45; g.strokeStyle = kit.accent; g.strokeText(name.toUpperCase(), 0, PX * 0.4);
-    g.fillStyle = "#ffffff"; g.fillText(name.toUpperCase(), 0, PX * 0.4); g.restore();
-  };
-  ez(-10, kits.home, home.short); ez(100, kits.away, away.short);
-  g.strokeStyle = "#f4f4f0"; g.fillStyle = "#f4f4f0";
-  // sidelines and end lines
-  g.lineWidth = PX * 0.3; g.strokeRect(x(-10) + PX * 0.15, PX * 0.15, 120 * PX - PX * 0.3, H - PX * 0.3);
-  // yard lines every 5, goal lines thicker
-  for (let X = 0; X <= 100; X += 5) { g.fillRect(x(X) - PX * (X % 100 === 0 ? 0.18 : 0.1), 0, PX * (X % 100 === 0 ? 0.36 : 0.2), H); }
-  // hash marks (every yard) along the sidelines and the hashes
-  for (let X = 1; X < 100; X++) {
-    if (X % 5 === 0) continue;
-    for (const Y of [0.5, FIELD_W - 0.5 - 0.67, 23.58, 29.75 - 0.67]) g.fillRect(x(X) - PX * 0.05, y(Y + 0.67), PX * 0.1, PX * 0.67);
-  }
-  // numbers every 10, both sides, the ones on the far side read from across the field
-  g.font = `600 ${Math.round(PX * 2)}px Oswald, 'Arial Narrow', sans-serif`; g.textAlign = "center"; g.textBaseline = "middle";
-  for (let X = 10; X <= 90; X += 10) {
-    const n = String(X <= 50 ? X : 100 - X);
-    for (const [Y, rot] of [[9, 0], [FIELD_W - 9, Math.PI]]) {
-      g.save(); g.translate(x(X), y(Y)); g.rotate(rot);
-      g.fillText(n[0], -PX * 0.95, 0); g.fillText(n[1], PX * 0.95, 0);
-      g.restore();
-    }
-  }
-  // midfield: the home team's mark
-  g.save(); g.translate(x(50), H / 2);
-  g.fillStyle = kits.home.jersey; g.beginPath(); g.arc(0, 0, PX * 4.6, 0, Math.PI * 2); g.fill();
-  g.lineWidth = PX * 0.35; g.strokeStyle = kits.home.accent; g.stroke();
-  g.fillStyle = "#ffffff"; g.font = `700 ${Math.round(PX * 3.1)}px Oswald, 'Arial Narrow', sans-serif`; g.fillText(home.abbr, 0, PX * 0.2);
-  g.restore();
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter;
-  return t;
-}
-
-// a crowd: rows of seated fans on the bowl's tiers (one instanced mesh; team colors mixed with the general public)
-function crowdMesh(kits, count = 9000) {
-  const geo = new THREE.BoxGeometry(0.5, 0.75, 0.42);
-  const mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-  const m = new THREE.InstancedMesh(geo, mat, count);
-  const cols = [kits.home.jersey, kits.home.jersey, kits.home.accent, kits.away.jersey, "#e8e2d4", "#2b2b30", "#7a5a44", "#c9c2b4", "#3f4a5a", "#9b2f2f"].map((h) => new THREE.Color(h));
-  const M = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
-  let i = 0;
-  const seat = (X, Y, Z, face) => {
-    if (i >= count) return;
-    p.set(X + (Math.random() - 0.5) * 0.25, Z, -Y); q.setFromAxisAngle(up, face);
-    s.set(1, 0.85 + Math.random() * 0.35, 1);
-    M.compose(p, q, s); m.setMatrixAt(i, M); m.setColorAt(i, cols[(Math.random() * cols.length) | 0]); i++;
-  };
-  // sideline stands (both sides), 22 rows rising away from the field
-  for (let row = 0; row < 22; row++) {
-    const off = 11 + row * 1.25, z = 2.2 + row * 0.82;
-    for (let X = -12; X <= 112; X += 0.7) { if (Math.random() < 0.08) continue; seat(X, -off, z, 0); seat(X, FIELD_W + off, z, Math.PI); }
-  }
-  // end stands
-  for (let row = 0; row < 16; row++) {
-    const off = 18 + row * 1.25, z = 2.2 + row * 0.82;
-    for (let Y = -6; Y <= FIELD_W + 6; Y += 0.7) { if (Math.random() < 0.1) continue; seat(-10 - off, Y, z, -Math.PI / 2); seat(110 + off, Y, z, Math.PI / 2); }
-  }
-  m.count = i; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true;
-  return m;
-}
 
 function goalPost(X, dir) {
   const g = new THREE.Group(), mat = new THREE.MeshStandardMaterial({ color: 0xf5d020, roughness: 0.45, metalness: 0.2 });
@@ -107,15 +26,6 @@ function goalPost(X, dir) {
   return g;
 }
 
-function lightTower(X, Y, faceX, faceY) {
-  const g = new THREE.Group();
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.5, 34, 8), new THREE.MeshStandardMaterial({ color: 0x5a5f66, roughness: 0.8 }));
-  pole.position.y = 17; g.add(pole);
-  const bank = new THREE.Mesh(new THREE.BoxGeometry(7, 4.5, 0.6), new THREE.MeshStandardMaterial({ color: 0x22262c, emissive: 0xfff6dc, emissiveIntensity: 2.2 }));
-  bank.position.y = 34.5; bank.lookAt(new THREE.Vector3(faceX - X, -20, -(faceY - Y))); g.add(bank);
-  g.position.set(X, 0, -Y);
-  return g;
-}
 
 export class Renderer3D {
   constructor(canvas) {
@@ -163,55 +73,15 @@ export class Renderer3D {
     this.uniforms = { home: new Map(), away: new Map() };
     const S = this.stadium = new THREE.Group();
     this.kits = kits; this.teams = { home, away };
-    // sky: a deep evening gradient
-    const sky = new THREE.Mesh(new THREE.SphereGeometry(600, 32, 16), new THREE.ShaderMaterial({
-      side: THREE.BackSide, depthWrite: false,
-      uniforms: { top: { value: new THREE.Color("#060b1a") }, mid: { value: new THREE.Color("#1a2a4a") }, low: { value: new THREE.Color("#3d3a4a") } },
-      vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
-      fragmentShader: "uniform vec3 top, mid, low; varying vec3 vP; void main(){ float h = vP.y; vec3 c = h > 0.08 ? mix(mid, top, smoothstep(0.08, 0.5, h)) : mix(low, mid, smoothstep(-0.05, 0.08, h)); gl_FragColor = vec4(c, 1.0); }",
-    }));
-    S.add(sky);
-    // field + surrounding turf
-    const surround = new THREE.Mesh(new THREE.PlaneGeometry(170, 110), new THREE.MeshStandardMaterial({ color: 0x245c2c, roughness: 0.95 }));
-    surround.rotation.x = -Math.PI / 2; surround.position.set(50, -0.02, -MID_Y); surround.receiveShadow = true; S.add(surround);
-    const field = new THREE.Mesh(new THREE.PlaneGeometry(120, FIELD_W), new THREE.MeshStandardMaterial({ map: fieldTexture(home, away, kits), roughness: 0.88 }));
-    field.rotation.x = -Math.PI / 2; field.position.set(50, 0, -MID_Y); field.receiveShadow = true; S.add(field);
-    // the bowl: tiers under the crowd, a facade wall, the crowd itself
-    const tierMat = new THREE.MeshStandardMaterial({ color: 0x3a3f48, roughness: 0.9 });
-    const wallMat = new THREE.MeshStandardMaterial({ color: 0x14171d, roughness: 0.8 });
-    const tier = (w, d, h, x, y, z, ry) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), tierMat); m.position.set(x, y, z); m.rotation.y = ry; S.add(m); };
-    for (let row = 0; row < 22; row++) {
-      const off = 11 + row * 1.25, z = 1.8 + row * 0.82;
-      tier(128, 1.3, 0.6, 50, z - 0.3, off, 0); tier(128, 1.3, 0.6, 50, z - 0.3, -(FIELD_W + off), 0);
-    }
-    for (let row = 0; row < 16; row++) {
-      const off = 18 + row * 1.25, z = 1.8 + row * 0.82;
-      tier(FIELD_W + 16, 1.3, 0.6, -10 - off, z - 0.3, -MID_Y, Math.PI / 2); tier(FIELD_W + 16, 1.3, 0.6, 110 + off, z - 0.3, -MID_Y, Math.PI / 2);
-    }
-    // padded wall around the field with the home color band
-    const band = new THREE.MeshStandardMaterial({ color: kits.home.jersey, roughness: 0.6 });
-    const wall = (w, x, z, ry) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, 1.6, 0.4), band); m.position.set(x, 0.8, z); m.rotation.y = ry; S.add(m); };
-    wall(132, 50, 10.2, 0); wall(132, 50, -(FIELD_W + 10.2), 0); wall(FIELD_W + 20, -27.5, -MID_Y, Math.PI / 2); wall(FIELD_W + 20, 127.5, -MID_Y, Math.PI / 2);
-    S.add(crowdMesh(kits));
-    // upper facade ring
-    for (const [w, x, z, ry] of [[160, 50, 40, 0], [160, 50, -(FIELD_W + 40), 0], [FIELD_W + 80, -50, -MID_Y, Math.PI / 2], [FIELD_W + 80, 150, -MID_Y, Math.PI / 2]]) {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(w, 6, 1), wallMat); m.position.set(x, 21, z); m.rotation.y = ry; S.add(m);
-    }
-    const ribbon = new THREE.MeshBasicMaterial({ color: "#f3a63c", toneMapped: false });
-    for (const z of [35, -FIELD_W - 35]) {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(154, 0.26, 0.28), ribbon);
-      rail.position.set(50, 18.4, z);
-      S.add(rail);
-    }
+    // ALL-22 PRO's pixel stadium: field, stand walls, LED ribbon, night sky, light towers, jumbotrons (pixel-stadium.js)
+    this.pixel?.dispose();
+    this.pixel = new PixelStadium(home, away, kits);
+    S.add(this.pixel.group);
     S.add(goalPost(-10, -1), goalPost(110, 1));
     // pylons
     const pyl = new THREE.MeshStandardMaterial({ color: 0xff6a13, roughness: 0.6 });
     for (const X of [0, -10, 100, 110]) for (const Y of [0, FIELD_W]) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.6, 0.3), pyl); m.position.set(X, 0.3, -Y); S.add(m); }
-    // benches on the sidelines (the home side near the main camera's left)
-    for (const [Y, kit] of [[-6, kits.home], [FIELD_W + 6, kits.away]]) {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(30, 0.9, 1.2), new THREE.MeshStandardMaterial({ color: kit.jersey, roughness: 0.7 }));
-      m.position.set(50, 0.45, -Y); S.add(m);
-    }
+    // (the benches are painted on the apron: pixel-stadium.js)
     // lights: stadium banks (key light with shadows from above the near sideline), fill, and the towers' look
     S.add(new THREE.HemisphereLight(0xc8d4ff, 0x1d3a1f, 0.9));
     const key = new THREE.DirectionalLight(0xfff3e0, 2.6);
@@ -222,7 +92,6 @@ export class Renderer3D {
     this.key = key;
     S.add(key, key.target);
     const fill = new THREE.DirectionalLight(0xbad8ff, 1.03); fill.position.set(50, 60, -(FIELD_W + 40)); fill.target.position.set(50, 0, -MID_Y); S.add(fill, fill.target);
-    for (const [X, Y] of [[-14, -16], [114, -16], [-14, FIELD_W + 16], [114, FIELD_W + 16], [50, -22], [50, FIELD_W + 22]]) S.add(lightTower(X, Y, 50, MID_Y));
     this.scene.add(S);
     // line of scrimmage (blue) and first down (yellow) lines laid on the turf, TV style
     const lineGeo = new THREE.PlaneGeometry(0.22, FIELD_W);
@@ -320,6 +189,8 @@ export class Renderer3D {
       if (!player) return;
       this.knocks.push({ play: w.playNo, player, kind, from, force, vel: this.vel3(w, player), at: this.pos3(w, player), fromAt: from ? this.pos3(w, from) : null, fromVel: from ? this.vel3(w, from) : null, dir: this.dir3(w, player) });
     };
+    const cheer = (sec) => () => this.pixel?.cheerFor(sec);
+    const stopCheers = [w.bus.on("touchdown", cheer(4)), w.bus.on("interception", cheer(2.5)), w.bus.on("sack", cheer(2)), w.bus.on("fieldGoal", (e) => { if (e.good) this.pixel?.cheerFor(2.5); }), w.bus.on("hitStick", (e) => { if (e.boom) this.pixel?.cheerFor(1.5); })];
     const stopKnocks = [
       w.bus.on("truck", (e) => { if (!e.failed && e.defender) knock(e.defender, "truck", e.player, e.fling || 0); }),
       w.bus.on("pancake", (e) => knock(e.defender, "pancake", e.blocker)),
@@ -331,7 +202,7 @@ export class Renderer3D {
       const direction = w.possession === "home" ? 1 : -1;
       this.throwMotion = { play: w.playNo, qb, lob, spike, heading: Math.atan2(direction * ball.vx, -direction * ball.vy) };
     });
-    this.stopWatchingPlayEvents = () => { stopTackles(); stopThrows(); for (const f of stopKnocks) f(); };
+    this.stopWatchingPlayEvents = () => { stopTackles(); stopThrows(); for (const f of stopKnocks) f(); for (const f of stopCheers) f(); };
   }
 
   // three.js position / velocity / move direction of a sim player (offense coords → stadium → three.js axes)
@@ -474,6 +345,8 @@ export class Renderer3D {
 
   // the World → the scene, once per frame
   sync(w, dt, opts) {
+    this.stadiumT = (this.stadiumT || 0) + dt;
+    this.pixel?.update(dt, this.stadiumT, w.phase === "init" ? null : jumboInfo(w, this.kits));
     const flipC = w.possession !== "home";
     const bc = w.ball.carrier;
     const scrim = w.playType === "normal" || w.playType === "two";

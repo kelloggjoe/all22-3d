@@ -2180,6 +2180,7 @@ function kneelsRunOut(w, k, down, runs) {
 // they run out the clock (kneelsRunOut). In the milk, a kneel instead of a run when the kick is close enough already
 // (the ball a yard back): no fumble.
 export function kneelOut(w) {
+  return false; // (Ragdoll Football: no victory formation, the CPU plays every down)
   if (w.ot || w.playType !== "normal" || w.down >= 4) return false;
   const k = w.possession, d = scoreLead(w, k), plan = clockPlan(w);
   if (plan === "milk") return w.los - 1 >= fgLine(w, k, CLOCK.MILK_FG[1]);

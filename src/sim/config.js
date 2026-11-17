@@ -399,15 +399,15 @@ export const RUN_BLOCK = { SCHEME: true, CLIMB: [0.4, 0.3], HOLD: 0.6, PUSH: 0.3
 
 export const TIMING = {
   DEAD_SEC: 1.6,
-  PRESNAP_CPU_SEC: 1.1,
-  HUDDLE_SEC: 0.9,
+  PRESNAP_CPU_SEC: 0.7, // (Ragdoll Football: the CPU lines up and snaps quickly, no clock games)
+  HUDDLE_SEC: 0.5,
   BANNER_SEC: 1.6,
   REPLAY_SEC: 5.5,
   COIN_SEC: 2.4, // window for the human's heads/tails call (world.action("coinCall")) before it is called at random
   //               (a coin-toss UI sets world.coinHold = true to wait for the player instead)
   COIN_RESULT_SEC: 1.4, // the toss result stays up this long before the kickoff is set
   RETURN_CALL_SEC: 1.0, // extra presnap time when the human receives a kick (to pick a return lane)
-  DEF_SWITCH_SEC: 2.0, // extra presnap time when the human is on defense in a scrimmage play (to switch defenders)
+  DEF_SWITCH_SEC: 1.0, // extra presnap time when the human is on defense in a scrimmage play (to switch defenders)
   // the clock between plays (world.js): a no-huddle offense lines up in NO_HUDDLE_SET; a CPU offense in its hurry-up
   // snaps HURRY_SEC after the whistle (a spike SPIKE_SEC); one running out the clock snaps with CHEW_AT (± 1) on the play
   // clock; a human defense facing a hurry-up has HURRY_CALL_SEC to call its play
