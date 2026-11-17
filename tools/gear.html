@@ -14,11 +14,11 @@ scene.add(new THREE.HemisphereLight(0xffffff, 0x334433, 1.4)); const d = new THR
 await loadAthleteAssets("../assets/models/");
 const kit = { jersey: "#123a6b", accent: "#f2b134", helmet: "#123a6b", pants: "#e9e6dc", number: "#ffffff" };
 const kit2 = { jersey: "#f4f4f0", accent: "#c24a1b", helmet: "#2a2420", pants: "#e3d3b8", number: "#c24a1b" };
-const mats = [uniformMaterial(kit, 0), uniformMaterial(kit, 1)], mats2 = [uniformMaterial(kit2, 0), uniformMaterial(kit2, 1)];
+const mats = [uniformMaterial(kit, { skin: 0 }), uniformMaterial(kit2, { skin: 4 })];
 const people = [];
 const poses = [["stance", {}], ["run", { vx: 7 }], ["block", { engaged: 1 }], ["back", {}]];
 poses.forEach(([n, o], i) => {
-  const A = new Athlete(i % 2 ? mats2 : mats, i % 2 ? kit2 : kit, { num: [12, 88, 71, 24][i], skin: i % 2, m: 1.9, kg: [100, 92, 140, 90][i] });
+  const A = new Athlete(mats[i % 2], i % 2 ? kit2 : kit, { num: [12, 88, 71, 24][i], m: 1.9, kg: [100, 92, 140, 90][i] });
   scene.add(A.root); people.push([A, n, o, i]);
 });
 const ax = new THREE.AxesHelper(0.3); people[3][0].bones.Head.add(ax);

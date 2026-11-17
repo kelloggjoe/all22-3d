@@ -1,4 +1,4 @@
-// ALL-22 3D: boot, the fixed 60 Hz simulation loop (ALL-22 PRO's World, unchanged), the match flow (play calls,
+// Ragdoll Football: boot, the fixed 60 Hz simulation loop, the match flow (play calls,
 // kicks, coin toss, halftime, the final) and the 3D presentation.
 import { World } from "./sim/world.js";
 import { createBus } from "./sim/events.js";
@@ -20,6 +20,8 @@ import { showTitle, showPause, showHalftime, showResults } from "./menus.js";
 const DT = 1 / 60;
 const SKEY = "all22-3d-settings-v1";
 const params = new URLSearchParams(location.search);
+const randomSeed = () => crypto.getRandomValues(new Uint32Array(1))[0] || 1;
+const querySeed = (key) => /^\d{1,10}$/.test(params.get(key) || "") ? Number(params.get(key)) >>> 0 : null;
 
 // the CPU team's knobs at a difficulty (ALL-22 PRO difficulty.js setupDifficulty)
 function setupDifficulty(w, diff) {
@@ -114,14 +116,18 @@ class App {
     this.ui = new UI(document.getElementById("ui"), this);
     this.ui.call = new CallPanel(this.ui, this);
     this.hud = new HudLogic(this);
-    this.settings = { quarter: RULES.QUARTER_SEC, accel: RULES.ACCEL, difficulty: 3, cam: "pro", camD: "pro", sound: true, sprintMode: "hold" };
+    this.settings = { quarter: RULES.QUARTER_SEC, accel: RULES.ACCEL, difficulty: 3, cam: "pro", camD: "pro", sound: true, sprintMode: "hold", characters: "kooky" };
     try { Object.assign(this.settings, JSON.parse(localStorage.getItem(SKEY) || "{}")); } catch (_) { /* defaults */ }
     if (!RULES.QUARTER_OPTS.includes(this.settings.quarter)) this.settings.quarter = RULES.QUARTER_SEC;
+    if (!["kooky", "classic"].includes(this.settings.characters)) this.settings.characters = "kooky";
+    if (params.get("characters")) this.settings.characters = params.get("characters") === "classic" ? "classic" : "kooky"; // (tests)
+    this.r.characters = this.settings.characters;
     this.input.setSprintMode(this.settings.sprintMode);
     this.cam.mode = this.settings.cam; this.cam.modeD = this.settings.camD;
     this.mode = "title"; this.world = null; this.attract = null; this.paused = false; this.replayActive = false;
     this.t = 0; this.acc = 0; this.last = 0; this.shake = 0; this.hitStop = 0;
-    this.seed = Number(params.get("seed")) || (Date.now() % 100000);
+    this.seed = querySeed("seed") ?? randomSeed();
+    this.rosterSeed = querySeed("roster") ?? this.seed;
     this.input.on((n, a) => this.onInput(n, a));
     window.addEventListener("resize", () => this.resize());
     this.canvas.addEventListener("pointerdown", (e) => this.onCanvasClick(e));
@@ -144,9 +150,12 @@ class App {
     if (k === "cam") this.cam.mode = v;
     if (k === "camD") this.cam.modeD = v;
     if (k === "sprintMode") this.input.setSprintMode(v);
+    if (k === "characters") { this.r.characters = v; this.r.rebuildAthletes(); }
   }
   toggleMute() { this.audio.unlock(); this.setSetting("sound", this.audio.muted); this.audio.setMuted(!this.settings.sound); this.ui.toast(this.settings.sound ? "SOUND ON" : "SOUND OFF"); }
   toggleFFBoost() {}
+
+  rerollRosters() { this.rosterSeed = randomSeed(); }
 
   async boot() {
     await loadAthleteAssets();
@@ -170,22 +179,23 @@ class App {
   }
   // the title: a CPU-vs-CPU game under the orbiting camera
   startAttract() {
-    const a = makeTeam(TEAM_DEFS[(this.seed % TEAM_DEFS.length)]), b = makeTeam(TEAM_DEFS[(this.seed + 3) % TEAM_DEFS.length]);
+    const a = makeTeam(TEAM_DEFS[this.seed % TEAM_DEFS.length], { seed: this.rosterSeed });
+    const b = makeTeam(TEAM_DEFS[(this.seed + 3) % TEAM_DEFS.length], { seed: this.rosterSeed });
     const w = new World({ bus: createBus(), home: a, away: b, seed: this.seed + 3, user: "home", autopilot: true, quarterSec: 600 });
     w.rateSlot = rateSlot;
-    this.attract = w; w.start();
+    this.attract = w; this.attractRosterSeed = this.rosterSeed; w.start();
     this.kits = kitsFor(a, b);
     a.kit = this.kits.home; b.kit = this.kits.away;
     this.r.setTeams(a, b, this.kits);
-    this.r.watchTackles(w);
+    this.r.watchPlayEvents(w);
     this.mode = "title";
   }
   startGame(userKey, oppKey) {
     this.ui.clear(); this.ui.hidePanel();
     this.lastUser = userKey; this.lastOpp = oppKey;
     const d = this.settings.difficulty;
-    const team = makeTeam(TEAM_BY_KEY[userKey]);
-    const opp = makeTeam(TEAM_BY_KEY[oppKey], { boost: d >= 5 ? 1.08 : d >= 4 ? 1.04 : 1 });
+    const team = makeTeam(TEAM_BY_KEY[userKey], { seed: this.rosterSeed });
+    const opp = makeTeam(TEAM_BY_KEY[oppKey], { seed: this.rosterSeed, boost: d >= 5 ? 1.08 : d >= 4 ? 1.04 : 1 });
     if (d >= 4) { opp.ai = { ...opp.ai, skill: Math.max(opp.ai.skill, HARD.MASTER_SKILL || 0.9), read: Math.min(opp.ai.read, HARD.MASTER_READ != null ? HARD.MASTER_READ : 0) }; opp.skill = opp.ai.skill; }
     this.kits = kitsFor(team, opp);
     team.kit = this.kits.home; opp.kit = this.kits.away;
@@ -195,7 +205,7 @@ class App {
     setupDifficulty(w, d);
     this.world = w;
     this.r.setTeams(team, opp, this.kits);
-    this.r.watchTackles(w);
+    this.r.watchPlayEvents(w);
     this.ui.setTeams(w, this.kits);
     this.ui.showHud(true);
     this.wire(bus, w);
@@ -356,6 +366,12 @@ class App {
     this.t += dtr;
     this.audio.tick();
     const intent = this.input.update(dtr);
+    if (this.ui.screen === "generator" && this.r.preview) {
+      const view = this.ui.layer.querySelector("[data-player-view]");
+      if (!this.noRender) this.r.renderPlayerPreview(dtr, view.getBoundingClientRect());
+      return;
+    }
+    this.r.clearPlayerPreview();
     const isAttract = this.mode !== "game" || !this.world;
     const w = isAttract ? this.attract : this.world;
     if (!w) return;

@@ -105,7 +105,7 @@ export function movePlayers(w, dt) {
   }
 }
 const MOVE_DUR = { juke: 0.32, spin: 0.34, stiff: 0.45, truck: 0.4, dive: 0.5, hitstick: 0.38, swat: 0.6, slide: 0.5 };
-const moveDur = (m) => MOVE_DUR[m] || 0.4;
+export const moveDur = (m) => MOVE_DUR[m] || 0.4;
 function endMove(w, p) {
   const m = p.move;
   p.move = null; p.moveT = 0;

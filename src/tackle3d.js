@@ -75,7 +75,8 @@ class TackleBody {
         .addScaledVector(drive, -STEP * heightFromHip);
       if (heightFromHip < -0.28) previous.addScaledVector(velocity, STEP * planted);
       previous.y += STEP * drop * Math.max(0, heightFromHip + 0.12);
-      this.points[name] = { position, previous, radius: radius * width, invMass: 1 / (weight * mass) };
+      const size = name === "helmet" ? headGear.scale.x : 1;
+      this.points[name] = { position, previous, radius: radius * width * size, invMass: 1 / (weight * mass) };
     }
     this.samples = Object.values(this.points);
 

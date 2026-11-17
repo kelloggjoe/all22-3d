@@ -4,7 +4,9 @@
 import * as THREE from "three";
 import { FIELD_W, MID_Y } from "./sim/config.js";
 import { Athlete, uniformMaterial } from "./players3d.js";
+import { kookyDNA } from "./kooky.js";
 import { Tackle3D } from "./tackle3d.js";
+import { THROW_END, throwReleaseTime } from "./football-moves.js";
 
 const v3 = new THREE.Vector3();
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -146,13 +148,17 @@ export class Renderer3D {
 
   // build the stadium for a matchup (night game under the lights)
   setTeams(home, away, kits) {
-    this.stopWatchingTackles?.();
-    this.stopWatchingTackles = null;
+    this.clearPlayerPreview();
+    this.stopWatchingPlayEvents?.();
+    this.stopWatchingPlayEvents = null;
     this.pendingTackle = null;
     this.tackle = null;
+    this.throwMotion = null;
     if (this.stadium) { this.scene.remove(this.stadium); this.stadium.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); }
-    for (const a of this.athletes.values()) this.scene.remove(a.root);
+    for (const a of this.athletes.values()) { this.scene.remove(a.root); a.dispose(); }
     this.athletes.clear();
+    if (this.uniforms) for (const group of Object.values(this.uniforms)) for (const mat of group.values()) mat.dispose();
+    this.uniforms = { home: new Map(), away: new Map() };
     const S = this.stadium = new THREE.Group();
     this.kits = kits; this.teams = { home, away };
     // sky: a deep evening gradient
@@ -189,6 +195,12 @@ export class Renderer3D {
     for (const [w, x, z, ry] of [[160, 50, 40, 0], [160, 50, -(FIELD_W + 40), 0], [FIELD_W + 80, -50, -MID_Y, Math.PI / 2], [FIELD_W + 80, 150, -MID_Y, Math.PI / 2]]) {
       const m = new THREE.Mesh(new THREE.BoxGeometry(w, 6, 1), wallMat); m.position.set(x, 21, z); m.rotation.y = ry; S.add(m);
     }
+    const ribbon = new THREE.MeshBasicMaterial({ color: "#f3a63c", toneMapped: false });
+    for (const z of [35, -FIELD_W - 35]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(154, 0.26, 0.28), ribbon);
+      rail.position.set(50, 18.4, z);
+      S.add(rail);
+    }
     S.add(goalPost(-10, -1), goalPost(110, 1));
     // pylons
     const pyl = new THREE.MeshStandardMaterial({ color: 0xff6a13, roughness: 0.6 });
@@ -207,22 +219,20 @@ export class Renderer3D {
     key.shadow.bias = -0.0005; key.shadow.normalBias = 0.02;
     this.key = key;
     S.add(key, key.target);
-    const fill = new THREE.DirectionalLight(0xdfe6ff, 0.9); fill.position.set(50, 60, -(FIELD_W + 40)); fill.target.position.set(50, 0, -MID_Y); S.add(fill, fill.target);
+    const fill = new THREE.DirectionalLight(0xbad8ff, 1.03); fill.position.set(50, 60, -(FIELD_W + 40)); fill.target.position.set(50, 0, -MID_Y); S.add(fill, fill.target);
     for (const [X, Y] of [[-14, -16], [114, -16], [-14, FIELD_W + 16], [114, FIELD_W + 16], [50, -22], [50, FIELD_W + 22]]) S.add(lightTower(X, Y, 50, MID_Y));
     this.scene.add(S);
     // line of scrimmage (blue) and first down (yellow) lines laid on the turf, TV style
     const lineGeo = new THREE.PlaneGeometry(0.22, FIELD_W);
     this.losLine = new THREE.Mesh(lineGeo, new THREE.MeshBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.85, depthWrite: false }));
     this.fdLine = new THREE.Mesh(lineGeo, new THREE.MeshBasicMaterial({ color: 0xffd400, transparent: true, opacity: 0.9, depthWrite: false }));
-    for (const l of [this.losLine, this.fdLine]) { l.rotation.x = -Math.PI / 2; l.position.set(0, 0.03, -MID_Y); l.renderOrder = 1; this.scene.add(l); }
+    for (const l of [this.losLine, this.fdLine]) { l.rotation.x = -Math.PI / 2; l.position.set(0, 0.03, -MID_Y); l.renderOrder = 1; S.add(l); }
     // the controlled player's ring
     this.ring = new THREE.Mesh(new THREE.RingGeometry(0.7, 0.92, 32), new THREE.MeshBasicMaterial({ color: 0xffd400, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide }));
-    this.ring.rotation.x = -Math.PI / 2; this.ring.renderOrder = 1; this.scene.add(this.ring);
-    // team materials (two skin tones each)
-    this.mats = { home: [uniformMaterial(kits.home, 0), uniformMaterial(kits.home, 1)], away: [uniformMaterial(kits.away, 0), uniformMaterial(kits.away, 1)] };
+    this.ring.rotation.x = -Math.PI / 2; this.ring.renderOrder = 1; S.add(this.ring);
     // play art (route lines on the turf before the snap)
     this.art = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
-    this.art.renderOrder = 2; this.scene.add(this.art);
+    this.art.renderOrder = 2; S.add(this.art);
   }
 
   athleteFor(p) {
@@ -230,15 +240,63 @@ export class Renderer3D {
     if (!a) {
       const info = p.team.players[p.slot] || {};
       const kit = this.kits[p.teamKey];
-      a = new Athlete(this.mats[p.teamKey], kit, { num: p.num, skin: info.skin || 0, m: info.sp ? info.sp.m : 1.88, kg: p.r.kg });
+      const look = info.look || {};
+      const group = this.uniforms[p.teamKey];
+      const key = `${look.skin ?? 0}/${look.socks ?? 0}/${look.gloves ?? 0}`;
+      if (!group.has(key)) group.set(key, uniformMaterial(kit, look));
+      a = new Athlete(group.get(key), kit, { num: p.num, look, m: info.sp?.m, kg: p.r.kg, kooky: this.characters === "kooky" ? kookyDNA(info) : null });
       this.athletes.set(p, a);
       this.scene.add(a.root);
     }
     return a;
   }
 
-  watchTackles(w) {
-    this.stopWatchingTackles = w.bus.on("tackle", ({ carrier, tackler, approach, fumble }) => {
+  setPlayerPreview(player, kit) {
+    this.clearPlayerPreview();
+    const material = uniformMaterial(kit, player.look);
+    const athlete = new Athlete(material, kit, { num: player.num, look: player.look, m: player.sp.m, kg: player.sp.kg, kooky: this.characters === "kooky" ? kookyDNA(player) : null });
+    athlete.root.position.set(40, 0, -MID_Y);
+    this.scene.add(athlete.root);
+    this.preview = { athlete, material, time: 0 };
+  }
+
+  // CLASSIC ↔ KOOKY: drop every athlete; athleteFor builds them again in the new style on the next frame
+  rebuildAthletes() {
+    for (const a of this.athletes.values()) { this.scene.remove(a.root); a.dispose(); }
+    this.athletes.clear();
+  }
+
+  clearPlayerPreview() {
+    if (!this.preview) return;
+    const { athlete, material } = this.preview;
+    this.scene.remove(athlete.root);
+    athlete.dispose();
+    material.dispose();
+    this.preview = null;
+    this.ballMesh.visible = true;
+  }
+
+  renderPlayerPreview(dt, bounds) {
+    const { athlete } = this.preview;
+    for (const a of this.athletes.values()) a.root.visible = false;
+    for (const mesh of [this.ballMesh, this.ballShadow, this.ring, this.losLine, this.fdLine, this.art]) mesh.visible = false;
+    this.preview.time += dt;
+    athlete.mixer.update(dt);
+    if (athlete.kooky) athlete.kooky.update(athlete, dt);
+    athlete.root.rotation.y = 0.21 + Math.sin(this.preview.time * 0.9) * 0.30;
+    const { x, z } = athlete.root.position;
+    this.key.position.x = this.key.target.position.x = x;
+    const { camera, W, H, cssW, cssH } = this;
+    camera.position.set(x + 1.50, 1.38, z + 4.55);
+    camera.lookAt(x, 1.03, z);
+    camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(2.74 * cssH / (9.6 * bounds.height)));
+    camera.setViewOffset(W, H, W * (0.5 - (bounds.left + bounds.width / 2) / cssW),
+      H * (0.5 - (bounds.top + bounds.height / 2) / cssH), W, H);
+    this.render();
+  }
+
+  watchPlayEvents(w) {
+    const stopTackles = w.bus.on("tackle", ({ carrier, tackler, approach, fumble }) => {
       const flip = w.possession !== "home";
       const direction = flip ? -1 : 1;
       const position = (p) => new THREE.Vector3(flip ? 100 - p.x : p.x, p.z, flip ? p.y - FIELD_W : -p.y);
@@ -253,6 +311,11 @@ export class Renderer3D {
         },
       };
     });
+    const stopThrows = w.bus.on("throw", ({ qb, ball, lob, spike }) => {
+      const direction = w.possession === "home" ? 1 : -1;
+      this.throwMotion = { play: w.playNo, qb, lob, spike, heading: Math.atan2(direction * ball.vx, -direction * ball.vy) };
+    });
+    this.stopWatchingPlayEvents = () => { stopTackles(); stopThrows(); };
   }
 
   syncTackle(w) {
@@ -279,6 +342,33 @@ export class Renderer3D {
     }
   }
 
+  drawThrowRelease(w) {
+    const shot = this.throwMotion;
+    if (!shot || shot.qb.down > 0 || shot.qb.anim !== "throw") return false;
+    const b = w.ball;
+    const isPass = b.state === "air" && !b.tipped && b.thrower === shot.qb && (b.kind === "pass" || b.kind === "lob");
+    if (!isPass && !(shot.spike && w.result?.spike && b.state === "dead")) return false;
+    const athlete = this.athletes.get(shot.qb);
+    if (!athlete) return false;
+    const ball = this.ballMesh;
+    const afterRelease = shot.qb.animT - throwReleaseTime(shot);
+    if (afterRelease < 0) {
+      athlete.gripWorld(ball.position, ball.quaternion);
+      return true;
+    }
+    const duration = shot.spike ? 0.09 : 0.18;
+    if (afterRelease >= duration) return false;
+    if (!shot.offset) {
+      shot.rotation = new THREE.Quaternion();
+      shot.offset = athlete.gripWorld(new THREE.Vector3(), shot.rotation).sub(ball.position);
+      shot.offsetStart = afterRelease;
+    }
+    const fade = 1 - THREE.MathUtils.smoothstep(afterRelease, shot.offsetStart, duration);
+    ball.position.addScaledVector(shot.offset, fade);
+    ball.quaternion.slerp(shot.rotation, fade);
+    return false;
+  }
+
   // the World → the scene, once per frame
   sync(w, dt, opts) {
     const flipC = w.possession !== "home";
@@ -288,8 +378,11 @@ export class Renderer3D {
     const pre = w.phase === "live" && scrim && !w.passThrown && !w.handedOff && !w.losCrossed && !ballAir && (!bc || bc === w.qb);
     const stKick = (w.playType === "kickoff" || w.playType === "punt") && (w.phase === "live" || w.phase === "presnap") && !bc;
     const seen = new Set();
-    const a = this.abs || (this.abs = { X: 0, Y: 0, fX: 1, fY: 0, vx: 0, vy: 0 });
-    const ex = this.ex || (this.ex = { stance: false });
+    const a = this.abs || (this.abs = { X: 0, Y: 0, fX: 1, fY: 0, vx: 0, vy: 0, moveX: 0, moveY: 0 });
+    const ex = this.ex || (this.ex = { stance: false, throw: null });
+    if (this.throwMotion && (this.throwMotion.play !== w.playNo || (w.phase !== "live" && w.phase !== "dead") ||
+      this.throwMotion.qb.animT >= THROW_END)) this.throwMotion = null;
+    const shot = this.throwMotion;
     this.syncTackle(w);
     const tackle = this.tackle;
     for (const p of w.players) {
@@ -299,6 +392,7 @@ export class Renderer3D {
       if ((p === tackle?.carrier && tackle.physics.carrier) || (p === tackle?.tackler && tackle.physics.tackler)) continue;
       a.X = flipC ? 100 - p.x : p.x; a.Y = flipC ? FIELD_W - p.y : p.y;
       a.vx = flipC ? -p.vx : p.vx; a.vy = flipC ? -p.vy : p.vy;
+      a.moveX = flipC ? -p.moveDX : p.moveDX; a.moveY = flipC ? -p.moveDY : p.moveDY;
       // facing (render.js): the QB's eyes downfield in his drop, pass protectors face the rush, DBs backpedal facing the QB
       let fX = p.faceX, fY = p.faceY;
       if (pre) {
@@ -310,6 +404,7 @@ export class Renderer3D {
       if (w.phase === "presnap" && !p.down) { fX = p.side === "O" ? 1 : -1; fY = 0; }
       a.fX = flipC ? -fX : fX; a.fY = flipC ? -fY : fY;
       ex.stance = w.phase === "presnap" && /^(LT|LG|C|RG|RT|DE1|DE2|NT|ILB2)$/.test(p.slot) && w.phaseT > 0.6;
+      ex.throw = p === shot?.qb ? shot : null;
       p.animT = (p.animT || 0) + dt;
       ath.sync(p, a, w, dt, ex);
     }
@@ -318,14 +413,12 @@ export class Renderer3D {
     // the ball: in the carrier's hand, in flight, or on the turf
     const b = w.ball, B = this.ballMesh;
     const bX = flipC ? 100 - b.x : b.x, bY = flipC ? FIELD_W - b.y : b.y;
+    let windingUp = false;
     if (b.state === "held" && b.carrier && this.athletes.get(b.carrier)) {
       const ath = this.athletes.get(b.carrier);
-      const hand = b.carrier === tackle?.carrier && tackle.physics.carrier && ath.bones.hand_r;
-      if (hand) {
-        hand.localToWorld(B.position.set(0, 0.085, 0));
-        hand.getWorldQuaternion(B.quaternion);
-        B.rotateX(Math.PI / 2);
-      } else {
+      const ragdoll = b.carrier === tackle?.carrier && tackle.physics.carrier;
+      if (ragdoll || ath.ballGripped) ath.gripWorld(B.position, B.quaternion);
+      else {
         ath.handWorld(B.position);
         B.rotation.set(0, ath.heading, 0); B.rotateX(-0.5);
       }
@@ -333,9 +426,10 @@ export class Renderer3D {
       B.position.set(bX, Math.max(0.12, b.z || 0), -bY);
       const vx = flipC ? -b.vx : b.vx, vy = flipC ? -b.vy : b.vy;
       if (b.state === "air" && Math.hypot(vx, vy) > 1) { B.rotation.set(0, Math.atan2(vx, -vy), 0); B.rotateX(-Math.atan2(b.vz || 0, Math.hypot(vx, vy)) * 0.8); if (b.kind === "pass" || b.kind === "lob") B.rotateZ(performance.now() * 0.03); else B.rotateX(performance.now() * 0.02); }
+      windingUp = this.drawThrowRelease(w);
     }
     this.ballShadow.position.set(B.position.x, 0.02, B.position.z);
-    this.ballShadow.visible = b.state === "air";
+    this.ballShadow.visible = b.state === "air" && !windingUp;
     // lines
     const showLines = opts.showLines;
     this.losLine.visible = showLines && opts.losX != null; this.fdLine.visible = showLines && opts.fdX != null;

@@ -1,29 +1,81 @@
 // Screens over the field: title, team select, pause, controls, halftime and the final.
-import { TEAM_DEFS, TEAM_BY_KEY, makeTeam } from "./teams.js";
+import { TEAM_DEFS, TEAM_BY_KEY, makeTeam, kitsFor } from "./teams.js";
 import { RULES } from "./sim/config.js";
+import { ALL_SLOTS } from "./sim/ratings.js";
 import { cap } from "./sim/bindings.js";
 import { esc } from "./ui.js";
 
 export const LEVELS = [[2, "PRO"], [3, "ALL-PRO"], [4, "MASTER"], [5, "LEGEND"]];
 const levelName = (d) => (LEVELS.find((x) => x[0] === d) || LEVELS[1])[1];
 const qName = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-const CARDS = new Map();
-const cardTeam = (key) => { if (!CARDS.has(key)) CARDS.set(key, makeTeam(TEAM_BY_KEY[key])); return CARDS.get(key); };
+const FIRST_LOOKS = ["QB", "LT", "CB1", "HB", "NT", "WR1"];
+const SHOWCASE = [...FIRST_LOOKS, ...ALL_SLOTS.filter((slot) => !FIRST_LOOKS.includes(slot)), "K"];
 
 export function showTitle(app) {
+  if (app.attract && app.attractRosterSeed !== app.rosterSeed) app.startAttract();
   app.ui.showHud(false);
   app.ui.showScreen("title", `
     <div class="title">
-      <div class="logo"><span class="l1">ALL-22</span><span class="l2">3D</span></div>
-      <div class="tag">Eleven on eleven. Call the play, then play it.</div>
+      <h1 class="logo"><span class="l1">Ragdoll</span><span class="l2">Football</span></h1>
       <div class="menu">
-        <button class="mi" data-i="0">PLAY</button>
-        <button class="mi" data-i="1">HOW TO PLAY</button>
+        <button class="mi go" data-i="0">PLAY</button>
+        <button class="mi" data-i="1">PLAYER GENERATOR</button>
+        <button class="mi" data-i="2">HOW TO PLAY</button>
       </div>
-      <div class="foot">Player models and animations: Quaternius (CC0)</div>
     </div>`, {
-    cls: "dim",
-    onPick: (i) => { app.audio.unlock(); app.audio.sfx("select"); if (i === 0) showSelect(app); else showControls(app, () => showTitle(app)); },
+    cls: "night-title",
+    onPick: (i) => {
+      app.audio.unlock(); app.audio.sfx("select");
+      if (i === 0) showSelect(app);
+      else if (i === 1) showGenerator(app);
+      else showControls(app, () => showTitle(app));
+    },
+  });
+}
+
+function showGenerator(app, index = 0, focus = 0) {
+  const def = TEAM_DEFS[(index * 3 + app.rosterSeed % TEAM_DEFS.length) % TEAM_DEFS.length];
+  const team = makeTeam(def, { seed: app.rosterSeed });
+  const player = team.players[SHOWCASE[index % SHOWCASE.length]];
+  const inches = Math.round(player.sp.m / 0.0254);
+  const weight = Math.round(player.sp.kg / 0.45359237);
+  const rating = (n) => Math.round(n);
+  const stat = (label, value) => `<div><dt>${label}</dt><dd>${value}</dd></div>`;
+  const skills = player.slot === "QB" ? stat("Arm", rating(player.r.arm)) : player.slot === "K" ? stat("Kick", rating(player.r.kick)) : stat("Agility", rating(player.r.agility));
+  app.r.setPlayerPreview(player, kitsFor(team, team).home);
+  app.ui.showScreen("generator", `<section class="generator" aria-label="Player generator">
+    <div class="generator-view" data-player-view aria-label="3D preview of ${esc(player.full)}"></div>
+    <div class="generator-card">
+      <div class="generator-label">Player Generator</div>
+      <div aria-live="polite">
+        <p class="generator-team">${esc(team.name)} <span>· ${esc(player.slot)} #${player.num}</span></p>
+        <h2>${esc(player.full)}</h2>
+        <p class="generator-style">${player.nickname ? `“${esc(player.nickname)}” <span>·</span> ` : ""}${esc(player.style)}</p>
+        <dl class="generator-stats">
+          ${stat("Height", `${Math.floor(inches / 12)}′ ${inches % 12}″`)}${stat("Weight", `${weight} lb`)}
+          ${stat("Speed", `${player.r.speed.toFixed(1)} yd/s`)}${stat("Power", rating(player.r.power))}${skills}
+        </dl>
+        ${player.trait ? `<p class="generator-trait">Trait <strong>${esc(player.trait.name)}</strong></p>` : ""}
+      </div>
+      <div class="generator-actions">
+        <button class="mi go" data-i="0">NEXT PLAYER</button>
+        <button class="mi" data-i="1">REROLL LEAGUE</button>
+        <button class="mi" data-i="2">CHARACTERS · ${app.settings.characters === "kooky" ? "KOOKY" : "CLASSIC"}</button>
+        <button class="mi" data-i="3">PLAY AS ${esc(team.abbr)}</button>
+        <button class="mi" data-i="4">BACK</button>
+      </div>
+      <p class="generator-seed">League seed <strong>${app.rosterSeed}</strong></p>
+    </div>
+  </section>`, {
+    cls: "generator-screen", sel: focus, back: () => showTitle(app),
+    onPick: (i) => {
+      app.audio.sfx("select");
+      if (i === 0) showGenerator(app, index + 1);
+      else if (i === 1) { app.rerollRosters(); showGenerator(app, 0, 1); }
+      else if (i === 2) { app.setSetting("characters", app.settings.characters === "kooky" ? "classic" : "kooky"); showGenerator(app, index, 2); }
+      else if (i === 3) showSelect(app, 1, def.key);
+      else showTitle(app);
+    },
   });
 }
 
@@ -33,7 +85,7 @@ export function showSelect(app, step = 0, pickU = null, pickO = null) {
   if (step < 2) {
     const taken = step === 1 ? pickU : null;
     const cards = TEAM_DEFS.map((d, i) => {
-      const t = cardTeam(d.key), r = t.ratings;
+      const t = makeTeam(d, { seed: app.rosterSeed }), r = t.ratings;
       return `<button class="tc ${d.key === taken ? "taken" : ""}" data-i="${i}" ${d.key === taken ? "disabled" : ""} style="--c:${d.jersey};--a:${d.accent}">
         <span class="tb"><b>${esc(d.abbr)}</b><i>${t.ovr}</i></span><span class="tn">${esc(d.name)}</span>
         <span class="tr"><em>PASS ${r.pass}</em><em>RUN ${r.rush}</em><em>DEF ${r.def}</em><em>SPD ${r.speed}</em></span>
@@ -54,18 +106,20 @@ export function showSelect(app, step = 0, pickU = null, pickO = null) {
     <button class="orow" data-i="0">${row("DIFFICULTY", levelName(s.difficulty))}</button>
     <button class="orow" data-i="1">${row("QUARTER LENGTH", qName(s.quarter))}</button>
     <button class="orow" data-i="2">${row("SPRINT", s.sprintMode === "toggle" ? "TOGGLE" : "HOLD")}</button>
-    <button class="mi go" data-i="3">KICK OFF</button>
+    <button class="orow" data-i="3">${row("CHARACTERS", s.characters === "kooky" ? "KOOKY" : "CLASSIC")}</button>
+    <button class="mi go" data-i="4">KICK OFF</button>
     <div class="hint">◀ ▶ CHANGE · ENTER ON KICK OFF · BACKSPACE GOES BACK</div></div>`, {
-    cls: "dim", sel: 3,
+    cls: "dim", sel: 4,
     back: () => showSelect(app, 1, pickU),
     keys: [["left", () => change(-1)], ["right", () => change(1)]],
-    onPick: (i) => { if (i < 3) change(1); else { app.audio.sfx("select"); app.lastUser = pickU; app.lastOpp = pickO; app.startGame(pickU, pickO); } },
+    onPick: (i) => { if (i < 4) change(1); else { app.audio.sfx("select"); app.lastUser = pickU; app.lastOpp = pickO; app.startGame(pickU, pickO); } },
   });
   function change(d) {
     const i = app.ui.sel;
     if (i === 0) { const L = LEVELS.map((x) => x[0]); app.setSetting("difficulty", L[(L.indexOf(s.difficulty) + d + L.length) % L.length]); }
     else if (i === 1) { const Q = RULES.QUARTER_OPTS; app.setSetting("quarter", Q[(Q.indexOf(s.quarter) + d + Q.length) % Q.length]); }
     else if (i === 2) app.setSetting("sprintMode", s.sprintMode === "toggle" ? "hold" : "toggle");
+    else if (i === 3) app.setSetting("characters", s.characters === "kooky" ? "classic" : "kooky");
     else return;
     app.audio.sfx("blip");
     const keep = i; showSelect(app, 2, pickU, pickO); app.ui.focusAt(keep);

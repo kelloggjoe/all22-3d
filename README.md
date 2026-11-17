@@ -1,9 +1,7 @@
-# ALL-22 3D
+# Ragdoll Football
 
-Eleven-on-eleven football in three.js. The football is ALL-22 PRO's: its World (rules, clock, downs, special
-teams, overtime), physics, play AI, playbook and controls are copied unchanged into `src/sim/`. ALL-22 3D swaps the
-Pokémon rosters for fictional human teams and replaces the Mode 7 pixel renderer with a 3D stadium and animated
-players.
+Eleven-on-eleven football in Three.js with original, generated human rosters and physics-driven tackles.
+The rules, playbook, AI, and controls build on the ALL-22 PRO simulation in `src/sim/`.
 
 ## Play
 Serve the folder over HTTP and open it (the page loads three.js from a CDN):
@@ -13,10 +11,14 @@ python3 -m http.server 5180
 ```
 
 Then open http://localhost:5180. Keyboard or gamepad; HOW TO PLAY on the title screen lists every control.
+Open PLAYER GENERATOR to browse players from the current league, reroll all rosters, or play as the team on screen.
+To recreate a league, add `?roster=1234` to the URL with that league's seed.
 
 ## Layout
-- `src/sim/` ALL-22 PRO's simulation and input, unchanged
-- `src/teams.js` eight fictional teams; each player's stat record runs through the sim's own rating math
+- `src/sim/` football simulation, playbook, and input
+- `src/teams.js` eight fictional teams and their kits
+- `src/player-generator.js` seeded human players with position profiles, physical builds, traits, and gear
+- `src/kooky.js` KOOKY characters: DNA from each player's ratings plus seeded nonsense, built as toon blobs with ink outlines on the same skeleton (CHARACTERS on the game options and in the Player Generator switches CLASSIC / KOOKY)
 - `src/players3d.js` the athletes: model, uniform shader, helmet, pads, numbers, animation state machine
 - `src/render3d.js` stadium, field, crowd, lights, ball, play art, and the sim camera → three.js camera
 - `src/ui.js`, `src/playcall.js`, `src/menus.js` HUD, play calling, screens
