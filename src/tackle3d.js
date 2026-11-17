@@ -261,3 +261,34 @@ export class Tackle3D {
     this.release("tackler");
   }
 }
+
+// ---------- launches: one body, no grip ----------
+// Everything that knocks a man down without wrapping him up: a truck, a hit stick, a stiff arm, a pancake, broken
+// ankles, a dive or a slide, a whiffed tackle. velocity: the whole body's launch (yd/s, three.js axes: y up); drive:
+// how hard the upper body is thrown along a direction (it tips him over that way); planted: how much the cleats stick
+// (a man hit high with his feet planted goes over backwards); drop: how fast the shoulders fall.
+const FLOP_SETTLE = 2.4;
+export class Flop3D {
+  constructor(athlete, kind, { velocity, drive, planted = 0.5, drop = 1.2, mass = 1, speed = 0.9 }) {
+    this.kind = kind;
+    this.body = new TackleBody(athlete, athlete.root.position.clone(), mass, velocity, drive, planted, drop);
+    this.elapsed = 0;
+    this.accumulator = 0;
+    this.speed = speed;
+    this.airborne = velocity.y > 1.5;
+  }
+  update(dt) {
+    this.accumulator += dt * this.speed;
+    const body = this.body;
+    while (this.accumulator >= STEP && this.elapsed < FLOP_SETTLE) {
+      body.integrate();
+      for (let i = 0; i < 8; i++) { body.constrain(); body.floor(); }
+      this.elapsed += STEP;
+      this.accumulator -= STEP;
+    }
+    body.pose();
+  }
+  // the pelvis on the turf, for blending him back to where the sim has him
+  pelvisWorld(out) { return out.copy(this.body.points.pelvis.position); }
+  restore() { this.body.restore(); }
+}

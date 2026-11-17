@@ -51,7 +51,7 @@ export function movePlayers(w, dt) {
   for (let i = 0; i < ps.length; i++) {
     const p = ps[i];
     if (p.stun > 0) p.stun -= dt;
-    if (p.down > 0) { p.down -= dt; p.vx *= 0.86; p.vy *= 0.86; p.x += p.vx * dt; p.y += p.vy * dt; if (p.down <= 0) p.lie = 0; continue; }
+    if (p.down > 0) { p.down -= dt; const f = p.fly > 0 ? 0.95 : 0.86; if (p.fly > 0) p.fly -= dt; p.vx *= f; p.vy *= f; p.x += p.vx * dt; p.y += p.vy * dt; if (p.down <= 0) p.lie = 0; continue; }
     if (p.moveCool > 0) p.moveCool -= dt;
     if (p.tackleCool > 0) p.tackleCool -= dt;
     if (p.engageCool > 0) p.engageCool -= dt;
@@ -210,7 +210,7 @@ export function tryEngage(w, blocker, def) {
   // pancake: huge mismatch, small chance
   if (ratio > 1.35 && w.rng.chance(0.05 + (ratio - 1.35) * 0.25)) {
     release(blocker, def);
-    def.down = 1.3; def.lie = 1; def.vx = (def.x - blocker.x) * 2; def.vy = (def.y - blocker.y) * 2;
+    def.down = 1.3; def.lie = 1; def.vx = (def.x - blocker.x) * 2; def.vy = (def.y - blocker.y) * 2; def.fly = 0.4;
     w.bus.emit("pancake", { blocker, defender: def });
     if (w.statsBy) pancaked(w, blocker);
   }
@@ -382,7 +382,7 @@ export function tackles(w, dt) {
       d.down = 1.2; d.lie = 1;
       // the momentum behind it flings him back (PHYS.TRUCK_FLING)
       const F = PHYS.TRUCK_FLING, sp = Math.hypot(c.vx, c.vy), push = clamp((sp - F.FROM) * F.K, 0, F.MAX) * clamp(Math.sqrt((c.r.kg || 1) / (d.r.kg || 1)), 0.7, 1.5);
-      if (push > 0 && sp > 0) { d.vx = (c.vx / sp) * push; d.vy = (c.vy / sp) * push; }
+      if (push > 0 && sp > 0) { d.vx = (c.vx / sp) * push; d.vy = (c.vy / sp) * push; d.fly = 0.5; }
       w.bus.emit("truck", { player: c, defender: d, fling: push });
       if (w.squad) w.truckHit(d, c);
     }

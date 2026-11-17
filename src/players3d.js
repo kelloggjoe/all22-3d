@@ -312,6 +312,23 @@ export class Athlete {
       this.moves.carry(pocket, weight);
       this.ballGripped = weight > 0.4;
     }
+    if (this.recover) this.applyRecover(dt);
+  }
+  // getting up after a ragdoll: from the pose and spot it left him in, blend back into the animation (the root eases
+  // from where he lay to where the sim has him)
+  beginRecover(duration = 0.45) {
+    const snap = [];
+    this.model.traverse((o) => { if (o.isBone) snap.push([o, o.quaternion.clone(), o.position.clone()]); });
+    this.recover = { snap, t: 0, duration, root: this.root.position.clone(), quat: this.root.quaternion.clone() };
+  }
+  applyRecover(dt) {
+    const R = this.recover;
+    R.t += dt;
+    const u = Math.min(1, R.t / R.duration), k = 1 - u * u * (3 - 2 * u); // weight of the ragdoll's pose
+    for (const [bone, q, pos] of R.snap) { bone.quaternion.slerp(q, k); bone.position.lerp(pos, k); }
+    this.root.position.lerp(R.root, k);
+    this.root.quaternion.slerp(R.quat, k);
+    if (u >= 1) this.recover = null;
   }
   gripWorld(position, rotation) {
     const hand = this.bones.hand_r;
