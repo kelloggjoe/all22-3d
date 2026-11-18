@@ -1,9 +1,9 @@
 // Screens over the field: title, team select, the draft board, pause, controls, halftime and the final.
 import { TEAM_DEFS, TEAM_BY_KEY, kitsFor, autoDraft, twoWay, schemeOf, DRAFT_ORDER } from "./teams.js";
 import { SNACKS, SNACK_BY_KEY, GROUPS } from "./snacks.js";
-import { snackPortraits } from "./portraits.js";
+import { snackPortraits, SnackStage } from "./portraits.js";
 import { RULES } from "./sim/config.js";
-import { fitOf } from "./sim/ratings.js";
+import { fitOf, NUMBERS } from "./sim/ratings.js";
 import { cap } from "./sim/bindings.js";
 import { esc, boxColors, inkOn } from "./ui.js";
 
@@ -116,9 +116,12 @@ export function showDraft(app, pickU, pickO, st = null, focus = 0) {
     const s = SNACK_BY_KEY[key], g = GROUPS.find((x) => x.key === s.group), sp = s.sp;
     const bar = (label, v) => `<div class="dbar"><span>${label}</span><i><u style="width:${Math.round(Math.max(0.04, Math.min(1, (v - 30) / 110)) * 100)}%"></u></i></div>`;
     const best = DRAFT_ORDER.map((slot) => [LABEL[slot], fitOf(sp, slot, scheme)]).sort((a, b) => b[1] - a[1]).map((x) => x[0]).filter((x, j, a) => a.indexOf(x) === j).slice(0, 3);
-    el.innerHTML = `<img src="${img[key]}" alt=""><div class="dci"><span class="dchip" style="--g:${g.color};--gi:${g.ink}">${g.name}</span><h3>${esc(s.name)}</h3>
+    el.innerHTML = `<div class="dstage-wrap"></div><div class="dci"><span class="dchip" style="--g:${g.color};--gi:${g.ink}">${g.name}</span><h3>${esc(s.name)}</h3>
       <p>${esc(s.blurb)}</p>${bar("SPEED", sp.spe)}${bar("POWER", sp.atk)}${bar("BLOCKING", sp.def)}${bar("HANDS", sp.spd)}${bar("ARM", sp.spa)}
       <p class="dbest">Best at <b>${best.join(", ")}</b> · ${Math.round(sp.kg / 0.4536)} lb${by[key] ? ` · drafted at <b>${LABEL[by[key]]}</b>` : ""}</p></div>`;
+    app.stage = app.stage || new SnackStage();
+    el.querySelector(".dstage-wrap").append(app.stage.canvas);
+    app.stage.show(key, kit, by[key] ? NUMBERS[by[key]] : "");
   }
   card(focus);
 }

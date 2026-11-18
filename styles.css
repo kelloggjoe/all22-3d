@@ -179,8 +179,10 @@ body.ready .boot { opacity: 0; pointer-events: none; }
 .dlab em { margin-left: 5px; font-style: normal; color: #a9bacb; }
 .dspot.cur .dlab { background: var(--hi); color: #0d1014; }
 .dspot.cur .dlab em { color: #3b3200; }
-.dcard { display: grid; grid-template-columns: 116px minmax(0, 1fr); gap: 12px; align-items: start; padding: 12px; background: #101925f2; border-top: 4px solid var(--hi); }
-.dcard img { width: 116px; }
+.dcard { display: grid; grid-template-columns: minmax(150px, 44%) minmax(0, 1fr); gap: 12px; align-items: stretch; padding: 10px 14px 12px 6px; background: #101925f2; border-top: 4px solid var(--hi); }
+.dstage-wrap { position: relative; min-height: 250px; background: radial-gradient(ellipse at 50% 70%, #24344a, transparent 70%); }
+.dstage { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.dci { align-self: center; }
 .dchip { display: inline-block; padding: 2px 8px; border-radius: 4px; background: var(--g); color: var(--gi); font: 700 11px var(--disp); letter-spacing: .1em; text-transform: uppercase; }
 .dcard h3 { margin: 4px 0 4px; font: 700 28px/1 var(--disp); text-transform: uppercase; }
 .dcard p { margin: 0 0 8px; font: 500 14px var(--text); color: #ced8e3; }

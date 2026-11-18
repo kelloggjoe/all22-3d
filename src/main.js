@@ -378,6 +378,7 @@ class App {
       return;
     }
     this.r.clearPlayerPreview();
+    if (this.ui.screen === "draft" && this.stage && !this.noRender) this.stage.update(dtr); // the draft card's live snack
     const isAttract = this.mode !== "game" || !this.world;
     const w = isAttract ? this.attract : this.world;
     if (!w) return;
