@@ -4,7 +4,7 @@ import { TEAM_DEFS, TEAM_BY_KEY, makeTeam, kitsFor } from "./teams.js";
 import { RULES } from "./sim/config.js";
 import { ALL_SLOTS } from "./sim/ratings.js";
 import { cap } from "./sim/bindings.js";
-import { esc } from "./ui.js";
+import { esc, boxColors, inkOn } from "./ui.js";
 
 export const LEVELS = [[2, "PRO"], [3, "ALL-PRO"], [4, "MASTER"], [5, "LEGEND"]];
 const levelName = (d) => (LEVELS.find((x) => x[0] === d) || LEVELS[1])[1];
@@ -159,7 +159,7 @@ function statTable(w) {
   return `<table class="stats"><tr><th></th><th>${esc(w.teams.away.abbr)}</th><th>${esc(w.teams.home.abbr)}</th></tr>${rows.map(([l, f]) => `<tr><td>${l}</td><td>${f("away")}</td><td>${f("home")}</td></tr>`).join("")}</table>`;
 }
 function scoreLine(w) {
-  return `<div class="final">${["away", "home"].map((k) => `<div class="fs" style="--c:${w.teams[k].kit.jersey};--a:${w.teams[k].kit.accent}"><span>${esc(w.teams[k].name)}</span><b>${w.score[k]}</b></div>`).join("")}</div>`;
+  return `<div class="final">${["away", "home"].map((k) => `<div class="fs" style="--c:${boxColors(w.teams[k].kit)[0]};--a:${boxColors(w.teams[k].kit)[1]};--t:${inkOn(boxColors(w.teams[k].kit)[0])}"><span>${esc(w.teams[k].name)}</span><b>${w.score[k]}</b></div>`).join("")}</div>`;
 }
 export function showHalftime(app, w) {
   app.ui.showScreen("halftime", `<div class="half"><div class="sh"><span class="st">HALFTIME</span></div>${scoreLine(w)}${statTable(w)}<button class="mi" data-i="0">START THE SECOND HALF</button></div>`, {

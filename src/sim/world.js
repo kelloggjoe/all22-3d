@@ -170,6 +170,12 @@ export class World {
   absY(y) { return this.possession === "home" ? y : FIELD_W - y; }
   bySlot(list, slot) { for (const p of list) if (p.slot === slot) return p; return null; }
   userSide() { if (!this.user) return null; return this.user === this.possession ? "O" : "D"; }
+  // the human's offense chasing the other team's carrier after a turnover (an interception, a fumble returned): his men
+  // play defense until the whistle (SWITCH, TACKLE, HIT STICK)
+  userChasing() {
+    const c = this.ball.carrier;
+    return Boolean(this.user) && !this.autopilot && this.phase === "live" && this.ball.state === "held" && c && c.teamKey !== this.user && c.side === "D" && (this.playType === "normal" || this.playType === "two");
+  }
   isUserTeam(k) { return this.user === k && !this.autopilot; }
   ps(team, slot) {
     const t = this.pstats[team];
@@ -1638,7 +1644,7 @@ export class World {
       return;
     }
     if (name === "switch") {
-      if (this.userSide() === "D" || (this.playType === "kickoff" && this.user === this.possession) || (this.playType === "punt" && this.user === this.possession)) this.switchToBall();
+      if (this.userSide() === "D" || this.userChasing() || (this.playType === "kickoff" && this.user === this.possession) || (this.playType === "punt" && this.user === this.possession)) this.switchToBall();
       return;
     }
     // a tap on one of his defenders in a scrimmage play (where SWITCH works on defense: not while his own man has the ball)

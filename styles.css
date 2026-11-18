@@ -23,7 +23,7 @@ body.ready .boot { opacity: 0; pointer-events: none; }
 
 /* scorebug: bottom center, broadcast style */
 .hud .bug { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; align-items: stretch; height: 44px; background: var(--panel); box-shadow: 0 6px 20px rgba(0,0,0,.45); font-family: var(--disp); white-space: nowrap; }
-.bug .tm { position: relative; display: flex; align-items: center; gap: 12px; padding: 0 14px 0 12px; min-width: 118px; justify-content: space-between; background: var(--c); border-bottom: 4px solid var(--a); }
+.bug .tm { position: relative; display: flex; align-items: center; gap: 12px; padding: 0 14px 0 12px; min-width: 118px; justify-content: space-between; background: var(--c); color: var(--t, #fff); border-bottom: 4px solid var(--a); }
 .bug .tm .ab { font-size: 20px; font-weight: 600; letter-spacing: .04em; text-shadow: 0 1px 0 rgba(0,0,0,.4); }
 .bug .tm .sc { font-size: 28px; font-weight: 700; text-shadow: 0 1px 0 rgba(0,0,0,.4); }
 .bug .tm.pos::before { content: ""; position: absolute; left: 4px; top: 50%; margin-top: -3px; border: 3px solid transparent; border-left-color: var(--ink); }
@@ -209,7 +209,7 @@ body.ready .boot { opacity: 0; pointer-events: none; }
 .help td:first-child { width: 38%; white-space: nowrap; }
 .pause, .half { width: min(620px, 100%); }
 .final { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px; }
-.final .fs { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--c); border-bottom: 4px solid var(--a); font: 600 17px var(--disp); }
+.final .fs { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--c); color: var(--t, #fff); border-bottom: 4px solid var(--a); font: 600 17px var(--disp); }
 .final .fs b { font-size: 40px; }
 table.stats { width: 100%; border-collapse: collapse; background: var(--panel); margin-bottom: 8px; }
 table.stats th, table.stats td { padding: 7px 12px; font: 600 14px var(--text); text-align: right; border-top: 1px solid var(--line); }

@@ -210,9 +210,11 @@ export class Camera {
     if (T && (T.w !== w || T.n !== w.playNo || (w.phase !== "live" && w.phase !== "dead"))) { T = this.turn = null; this.swing = null; }
     if (!T && this.turnOn && !bc && w.phase === "live" && w.user && !w.autopilot) {
       const b = w.ball, c = b.state === "held" ? b.carrier : null, mine = w.user === "home" ? 1 : -1; // (his team's way, in abs X)
-      if (c && c.teamKey === w.user && dir !== mine) {
-        T = this.turn = { w, n: w.playNo, dir: mine };
-        this.swing = { dir: mine, init: false };
+      // (his own carrier going his way; or, picked off in a scrimmage play, the other team's return going theirs)
+      const want = !c ? 0 : c.teamKey === w.user ? mine : c.side === "D" && (w.playType === "normal" || w.playType === "two") ? -mine : 0;
+      if (want && dir !== want) {
+        T = this.turn = { w, n: w.playNo, dir: want };
+        this.swing = { dir: want, init: false };
         this.turns++;
         // a stick pushed as it turns keeps running him the way it did (stickFor)
         const m = Math.hypot(this.raw.mx, this.raw.my);

@@ -4,6 +4,11 @@
 // halftime, results) in menus.js.
 import { B, PAD_NAMES, cap } from "./sim/bindings.js";
 
+const lum = (hex) => { const n = parseInt(hex.slice(1), 16); return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255); };
+// a team's box on the scorebug and the final: its jersey, or (a white or near-white jersey) its accent with the jersey as
+// the edge, so the box never washes out; ink that reads on it
+export const boxColors = (kit) => (lum(kit.jersey) > 185 ? [kit.accent, kit.jersey] : [kit.jersey, kit.accent]);
+export const inkOn = (bg) => (lum(bg) > 160 ? "#14171c" : "#ffffff");
 export const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 export const is = (id, n, a) => (a && a.key ? (B.kb[id] || []).includes(a.key) : (B.pad[id] || []).some((i) => PAD_NAMES[i] === n));
 const ORD = ["", "1ST", "2ND", "3RD", "4TH"];
@@ -77,7 +82,8 @@ export class UI {
   setTeams(w, kits) {
     for (const k of ["home", "away"]) {
       const el = this.bug[k], t = w.teams[k];
-      el.style.setProperty("--c", kits[k].jersey); el.style.setProperty("--a", kits[k].accent);
+      const [bg, edge] = boxColors(kits[k]);
+      el.style.setProperty("--c", bg); el.style.setProperty("--a", edge); el.style.setProperty("--t", inkOn(bg));
       el.querySelector(".ab").textContent = t.abbr;
     }
   }

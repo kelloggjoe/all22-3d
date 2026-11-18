@@ -7,6 +7,7 @@ import { Audio } from "./sim/audio.js";
 import { Input } from "./sim/input.js";
 import { PlayArt } from "./sim/playart.js";
 import { Controls } from "./sim/controls.js";
+import { cap } from "./sim/bindings.js";
 import { RULES, KICKING, HARD, FIELD_W } from "./sim/config.js";
 import { DEF_AUDIBLES, basePlay } from "./sim/playbook.js";
 import * as AI from "./sim/ai.js";
@@ -228,7 +229,12 @@ class App {
     bus.on("fieldGoal", (e) => ui.banner(e.good ? "FIELD GOAL IS GOOD" : e.blocked ? "BLOCKED" : "NO GOOD", `${e.distance || ""} YARDS${e.doink ? " · OFF THE UPRIGHT" : ""}`, e.good ? col(e.team) : "#5a6068", 2000));
     bus.on("patResult", (e) => ui.toast(e.good ? "EXTRA POINT IS GOOD" : e.blocked ? "PAT BLOCKED" : "EXTRA POINT NO GOOD", 1400));
     bus.on("twoPoint", (e) => { if (e.setup) ui.toast("2-POINT TRY", 1200); else ui.banner(e.good ? "2-POINT CONVERSION" : "NO GOOD", "", e.good ? col(e.team) : "#5a6068", 1600); });
-    bus.on("interception", (e) => { ui.banner("INTERCEPTED", nm(e.player), col(e.player.teamKey), 2000); this.shake = 0.5; });
+    bus.on("interception", (e) => {
+      ui.banner("INTERCEPTED", nm(e.player), col(e.player.teamKey), 2000); this.shake = 0.5;
+      if (w.autopilot) return;
+      this.hitStop = 0.75; // time stops on the pick while the camera swings round behind the return
+      if (e.player.teamKey !== w.user) ui.toast(`CHASE HIM DOWN · ${cap("switch")} SWITCHES PLAYER`, 1800); // (the sim hands him his receiver)
+    });
     bus.on("fumble", (e) => { if (!e.muff) { ui.toast("FUMBLE", 1200); this.shake = Math.max(this.shake, 0.35); } });
     bus.on("bobble", (e) => ui.toast(`BOBBLED · ${e.player.num} ${e.player.name.toUpperCase()}`, 900));
     bus.on("turnover", (e) => { if (e.kind === "downs") ui.banner("TURNOVER ON DOWNS", "", "#5a6068", 1700); else if (e.kind === "fumble" || e.kind === "muff") ui.banner("FUMBLE RECOVERED", "", col(w.possession), 1700); });

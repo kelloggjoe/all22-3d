@@ -137,7 +137,7 @@ export class Controls {
     }
     if (kick && c === w.returner && !w.ball.carrier) return "returner";
     if (kick && w.user === w.possession) return "coverage";
-    if (w.userSide() === "D") return "defense";
+    if (w.userSide() === "D" || w.userChasing()) return "defense";
     return "offNoBall";
   }
   // the bindings available right now (labels resolved) in a reused array — read it before the next call
