@@ -15,6 +15,7 @@ const PAD_TOP = 1.1, RIB_BOT = 1.1, RIB_TOP = 2.25;
 const AD_W = 2048, AD_H = 11;
 const TOWERS = [[-15, -7], [-15, FIELD_W + 7], [115, -7], [115, FIELD_W + 7], [50, -7.5], [50, FIELD_W + 7.5]];
 const JUMBO_X = [123, -23];
+const DECK = { inset: 12, back: 3.5, base: WALL_H - 1.2, rake: 0.32 }; // the sideline upper decks (yd, radians)
 // the ribbon's game-day cheers (no businesses or brands)
 const CHEERS = [["MAKE SOME NOISE", "#e8413b", "#f4f4ee"], ["GAME DAY", "#3aa04a", "#f4f4ee"], ["DEFENSE!", "#8a3cb0", "#ffd23e"], ["FAN ZONE", "#1f6fd8", "#f4f4ee"]];
 const SKY = { bands: ["#04051a", "#070922", "#0a0d2c", "#0e1236", "#131840", "#19204c", "#212a5a"], haze: "#2c3366", stars: 140 };
@@ -256,6 +257,55 @@ function moonSprite() {
   return spriteFrom(rows, { a: hexU32("#f6f2d8"), b: hexU32("#d8d2b0"), c: hexU32("#c4bc98"), d: hexU32("#a8a084") });
 }
 
+// ---------- the crowd, alive ----------
+// The stand art is static; this shader moves each fan on his own clock. A fan is a 4-texel column in an 8-row tier:
+// he hops (his cell drawn 1-2 texels higher) and throws his arms up (the alt frame), each fan at his own rate and
+// phase. excite (0..1) is how loud the place is: fans join in at their own thresholds, so a big play ripples into a
+// roar instead of everyone flipping at once. A wave (waveU, texels along the bowl) stands up whoever it passes.
+const CROWD_V = Math.round(ST_H - 13.3 * ST_PY), RAIL_V = Math.round(ST_H - (RIB_TOP + 0.3) * ST_PY);
+function crowdMaterial(S, A, len, along, shift = 0) {
+  return new THREE.ShaderMaterial({
+    toneMapped: false,
+    uniforms: {
+      tS: { value: S }, tA: { value: A }, rep: { value: new THREE.Vector2((len * ST_PU) / ST_W, -1) }, off: { value: new THREE.Vector2((along * ST_PU) / ST_W, 1) },
+      uT: { value: 0 }, uE: { value: 0 }, uWave: { value: -1e6 }, uShift: { value: shift },
+    },
+    vertexShader: "varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+    fragmentShader: `uniform sampler2D tS, tA; uniform vec2 rep, off; uniform float uT, uE, uWave, uShift; varying vec2 vUv;
+      const float W = ${ST_W}.0, H = ${ST_H}.0, PY = ${ST_PY.toFixed(5)}, BASE = ${(RIB_TOP + 0.3).toFixed(3)};
+      float h1(float a, float b, float k){ return fract(sin(a * 12.9898 + b * 78.233 + k * 37.719) * 43758.5453); }
+      void main(){
+        vec2 tuv = vUv * rep + off;
+        vec2 gx = dFdx(tuv), gy = dFdy(tuv);
+        float Ucont = tuv.x * W, v = floor(tuv.y * H), u = mod(floor(Ucont) + uShift, W);
+        bool sampleAlt = false;
+        if (v >= ${CROWD_V}.0 && v < ${RAIL_V}.0 && mod(u, 192.0) >= 8.0) {
+          float row = floor(((H - 1.0 - v + 0.5) / PY - BASE) * PY);
+          float tier = floor(row / 8.0), sub = row - tier * 8.0, fan = floor(u / 4.0);
+          float a = h1(fan, tier, 1.0), b = h1(fan, tier, 2.0), c = h1(fan, tier, 3.0), d = h1(fan, tier, 4.0);
+          // how into it he is: each fan joins the noise at his own threshold (a few never stand)
+          float join = a > 0.93 ? 0.0 : smoothstep(a * 0.75, a * 0.75 + 0.2, uE);
+          float sw = sin(uT * (4.0 + b * 5.0) + c * 6.2832);
+          float lift = floor(join * max(sw, 0.0) * (1.0 + step(0.55, uE)) + 0.5);
+          bool arms = join > 0.5 && (sw > -0.2 || d < 0.35);
+          // between plays: now and then somebody hops, raises his arms, or claps along
+          if (fract(uT * (0.09 + b * 0.08) + c) < 0.03) lift = max(lift, 1.0);
+          if (fract(uT * (0.06 + d * 0.05) + a) < 0.025) arms = true;
+          if (d < 0.1 && uE > 0.12) arms = arms || fract(uT * 2.6 + a) < 0.5;
+          // the wave
+          float dw = abs(Ucont - uWave);
+          if (dw < 30.0) { float k = 1.0 - dw / 30.0; lift = max(lift, floor(k * 2.0 + 0.5)); arms = arms || k > 0.35; }
+          // drawn lift texels higher: show the row below in his own cell (the seat under him if that's past his feet)
+          v = sub - lift < 0.0 ? v + sub : v + lift;
+          sampleAlt = arms;
+        }
+        vec2 st = vec2((u + 0.5) / W, (v + 0.5) / H);
+        gl_FragColor = sampleAlt ? textureGrad(tA, st, gx, gy) : textureGrad(tS, st, gx, gy);
+        #include <colorspace_fragment>
+      }`,
+  });
+}
+
 // ---------- the 3D stadium ----------
 export class PixelStadium {
   constructor(home, away, kits) {
@@ -270,14 +320,13 @@ export class PixelStadium {
     const { S, A } = standPixels(home, kits);
     this.stand = keep(texture(S, ST_W, ST_H, true)); this.standAlt = keep(texture(A, ST_W, ST_H, true));
     this.ribbon = keep(texture(ribbonPixels(home, kits), AD_W, AD_H, true));
-    this.walls = []; this.ribbons = [];
+    this.walls = []; this.ribbons = []; this.crowds = []; this.decks = [];
     const corners = [[X0, Y0], [X1, Y0], [X1, Y1], [X0, Y1]];
     let along = 0;
     for (let i = 0; i < 4; i++) {
       const [ax, ay] = corners[i], [bx, by] = corners[(i + 1) % 4], len = Math.hypot(bx - ax, by - ay);
-      const mat = new THREE.MeshBasicMaterial({ map: this.stand.clone(), toneMapped: false });
-      mat.map.repeat.set((len * ST_PU) / ST_W, -1); mat.map.offset.set((along * ST_PU) / ST_W, 1); mat.map.needsUpdate = true;
-      this.textures.push(mat.map);
+      const mat = crowdMaterial(this.stand, this.standAlt, len, along);
+      this.crowds.push(mat);
       const wall = new THREE.Mesh(new THREE.PlaneGeometry(len, WALL_H), mat);
       // the wall's front faces the field: going round the bowl (a → b) with the field on the left
       const mx = (ax + bx) / 2, my = (ay + by) / 2, dx = (bx - ax) / len, dy = (by - ay) / len;
@@ -293,6 +342,22 @@ export class PixelStadium {
       rib.translateZ(0.04);
       G.add(rib);
       this.ribbons.push(rmat.map);
+      // the long sides get an upper deck: set back, raked away from the field, its front hidden behind the lower rim
+      if (i === 0 || i === 2) {
+        const dl = len - 2 * DECK.inset, dmat = crowdMaterial(this.stand, this.standAlt, dl, along + DECK.inset, 1100);
+        this.crowds.push(dmat);
+        const deck = new THREE.Mesh(new THREE.PlaneGeometry(dl, WALL_H), dmat);
+        deck.position.copy(wall.position); deck.rotation.copy(wall.rotation);
+        deck.translateZ(-DECK.back); deck.position.y = DECK.base + (WALL_H / 2) * Math.cos(DECK.rake);
+        deck.translateZ(-(WALL_H / 2) * Math.sin(DECK.rake)); deck.rotateX(-DECK.rake);
+        G.add(deck);
+        // the concourse roof between the decks, and the deck's back wall
+        const gap = new THREE.Mesh(new THREE.PlaneGeometry(dl, DECK.back + 0.6), new THREE.MeshBasicMaterial({ color: "#121426" }));
+        gap.position.copy(wall.position); gap.rotation.copy(wall.rotation); gap.position.y = WALL_H - 0.02;
+        gap.translateZ(-(DECK.back + 0.6) / 2 + 0.3); gap.rotateX(-Math.PI / 2);
+        G.add(gap);
+        this.decks.push({ X: mx, Y: my, dx, dy });
+      }
       along += len;
     }
     // sky: stepped night bands with an ordered dither, a hazy horizon
@@ -332,11 +397,14 @@ export class PixelStadium {
     G.add(ms);
     // light towers on the rim: a lattice mast and a glowing lamp bank
     const mast = new THREE.MeshBasicMaterial({ color: "#2a2d3e" }), bank = new THREE.MeshBasicMaterial({ color: "#fff8d8", toneMapped: false }), frame = new THREE.MeshBasicMaterial({ color: "#14162a" });
-    for (const [X, Y] of TOWERS) {
+    const deckTop = DECK.base + WALL_H * Math.cos(DECK.rake), deckOut = DECK.back + WALL_H * Math.sin(DECK.rake);
+    for (const [X0t, Y0t] of TOWERS) {
+      const onDeck = X0t > 0 && X0t < 100, base = onDeck ? deckTop - WALL_H : 0; // (midfield towers stand on the upper deck's rim)
+      const X = X0t, Y = onDeck ? (Y0t < MID_Y ? Y0 - deckOut - 0.5 : Y1 + deckOut + 0.5) : Y0t;
       const t = new THREE.Group();
-      const m = new THREE.Mesh(new THREE.BoxGeometry(0.5, 7, 0.5), mast); m.position.y = WALL_H + 3.5; t.add(m);
-      const f = new THREE.Mesh(new THREE.BoxGeometry(3.8, 2, 0.4), frame); f.position.y = WALL_H + 7.9; t.add(f);
-      const b = new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.6, 0.45), bank); b.position.y = WALL_H + 7.9; t.add(b);
+      const m = new THREE.Mesh(new THREE.BoxGeometry(0.5, 7, 0.5), mast); m.position.y = base + WALL_H + 3.5; t.add(m);
+      const f = new THREE.Mesh(new THREE.BoxGeometry(3.8, 2, 0.4), frame); f.position.y = base + WALL_H + 7.9; t.add(f);
+      const b = new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.6, 0.45), bank); b.position.y = base + WALL_H + 7.9; t.add(b);
       t.position.set(X, 0, -Y); t.lookAt(50, 0, -MID_Y); t.rotation.x = 0; t.rotation.z = 0;
       G.add(t);
     }
@@ -355,21 +423,31 @@ export class PixelStadium {
       G.add(j);
     }
     this.kits = kits; this.home = home; this.away = away;
-    this.cheer = 0; this.scroll = 0; this.jumboKey = "";
+    this.cheer = 0; this.peak = 0; this.excite = 0; this.wave = null; this.waveSoon = Infinity; this.scroll = 0; this.jumboKey = "";
   }
   // per frame: the ribbon scrolls, the crowd jumps when it has something to cheer, the jumbotrons show the game
   update(dt, t, info) {
     this.scroll += dt * 6 * ST_PU; // 6 yd/s
     for (const r of this.ribbons) r.offset.x = this.scroll / AD_W;
+    // how loud it is: a cheer holds it up, then it settles back to a murmur (louder when the jumbotron asks for it)
     if (this.cheer > 0) this.cheer -= dt;
-    const up = this.cheer > 0 && ((t * 5) | 0) & 1;
-    for (const w of this.walls) {
-      const want = up ? this.standAlt : this.stand;
-      if (w.mat.map.source !== want.source) { w.mat.map.source = want.source; w.mat.map.needsUpdate = true; }
-    }
+    const murmur = info && /LOUD|DE-FENSE|NOISE|ALERT/.test(info.msg) ? 0.32 : 0.06;
+    const want = this.cheer > 0 ? this.peak : murmur;
+    this.excite += (want - this.excite) * Math.min(1, dt * (want > this.excite ? 6 : 0.9));
+    // a wave now and then (and after touchdowns), round the whole bowl
+    const total = 2 * ((X1 - X0) + (Y1 - Y0)) * ST_PU;
+    if (this.wave == null && (this.waveSoon <= 0 || Math.random() < dt / 70)) { this.wave = -40; this.waveSoon = Infinity; }
+    if (this.waveSoon !== Infinity) this.waveSoon -= dt;
+    if (this.wave != null) { this.wave += dt * 34 * ST_PU; if (this.wave > total + 40) this.wave = null; }
+    for (const m of this.crowds) { const U = m.uniforms; U.uT.value = t; U.uE.value = this.excite; U.uWave.value = this.wave ?? -1e6; }
     if (info) this.drawJumbo(info);
   }
-  cheerFor(sec) { this.cheer = Math.max(this.cheer, sec); }
+  // a big play: sec says how big (a touchdown 4, a pick 2.5, a big hit 1.5)
+  cheerFor(sec) {
+    this.cheer = Math.max(this.cheer, sec);
+    this.peak = Math.max(this.cheer > sec ? this.peak : 0, Math.min(1, 0.35 + sec * 0.17));
+    if (sec >= 4 && this.wave == null) this.waveSoon = 3.5; // a touchdown starts a wave once the jumping settles
+  }
   drawJumbo(info) {
     const key = `${info.clock}|${info.hs}|${info.as}|${info.msg}`;
     if (key === this.jumboKey) return;

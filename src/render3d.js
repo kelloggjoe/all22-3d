@@ -195,7 +195,9 @@ export class Renderer3D {
       this.spill(w, player, { truck: 1.5, hit: 1.5, pancake: 1.1, domino: 0.9, stiff: 0.8, bounce: 0.5, ankles: 0.35 }[kind] || 0, from);
     };
     const cheer = (sec) => () => this.pixel?.cheerFor(sec);
-    const stopCheers = [w.bus.on("recover", cheer(2.5)), w.bus.on("touchdown", cheer(4)), w.bus.on("interception", cheer(2.5)), w.bus.on("sack", cheer(2)), w.bus.on("fieldGoal", (e) => { if (e.good) this.pixel?.cheerFor(2.5); }), w.bus.on("hitStick", (e) => { if (e.boom) this.pixel?.cheerFor(1.5); })];
+    const stopCheers = [w.bus.on("recover", cheer(2.5)), w.bus.on("touchdown", cheer(4)), w.bus.on("interception", cheer(2.5)), w.bus.on("sack", cheer(2)), w.bus.on("fieldGoal", (e) => { if (e.good) this.pixel?.cheerFor(2.5); }), w.bus.on("hitStick", (e) => { if (e.boom) this.pixel?.cheerFor(1.5); }),
+      w.bus.on("truck", (e) => { if (e.defender && !e.failed) this.pixel?.cheerFor(1.6); }), w.bus.on("knockover", cheer(1.1)), w.bus.on("firstDown", cheer(0.9)),
+      w.bus.on("tackle", (e) => { if ((e.power || 0) > 11) this.pixel?.cheerFor(1.2); })];
     const stopKnocks = [
       w.bus.on("truck", (e) => { if (!e.failed && e.defender) knock(e.defender, "truck", e.player, e.fling || 0); }),
       w.bus.on("pancake", (e) => knock(e.defender, "pancake", e.blocker)),

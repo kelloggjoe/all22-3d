@@ -61,8 +61,8 @@ export const PHYS = {
   // 0.7–1.5. The tackler slides that off while he's down (×0.86 a step): about a yard at full speed, nothing at a jog
   TRUCK_FLING: { FROM: 3.5, K: 2.6, MAX: 10 },
   // (Snack League) a dive's launch on his momentum: CARRY × his speed along the dive + PUSH (yd/s), LIFT (LIFT_D
-  // for a tackler) + LIFT_K × speed up; a pancake / stiff arm's shove (yd/s); a giant head's pull on a hit stick
-  DIVE: { CARRY: 1.15, PUSH: 1.5, LIFT: 2.2, LIFT_D: 1.2, LIFT_K: 0.26 }, PANCAKE_PUSH: 4.2, STIFF_PUSH: 4.5, HEAD_TARGET: 0.09,
+  // for a tackler) + LIFT_K × speed up, never less than MIN_OUT forward and MIN_LIFT up; a pancake / stiff arm's shove (yd/s); a giant head's pull on a hit stick
+  DIVE: { CARRY: 1.15, PUSH: 1.5, LIFT: 2.2, LIFT_D: 1.2, LIFT_K: 0.26, MIN_OUT: 5, MIN_LIFT: 2.6 }, PANCAKE_PUSH: 4.2, STIFF_PUSH: 4.5, HEAD_TARGET: 0.09,
   // dominoes: a body flying faster than FROM yd/s knocks over whoever he hits (odds K per yd/s over FROM, × the weight
   // ratio's square root, ÷ the victim's footing), passing on KEEP of his speed; a knocked man is down DOWN + DOWN_K × speed
   // loose-ball pinball: a big hit pops it (fumble odds + K per point of impact power over FROM, at most MAX; the ball

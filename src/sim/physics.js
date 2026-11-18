@@ -128,9 +128,11 @@ export function startMove(w, p, move, dirX = 0, dirY = 0) {
     // a dive launches him on his own momentum: the faster he's going, the farther and higher he flies (a carrier's run
     // ends where he lands: world.js; a tackler who misses is on the ground where he lands: endMove)
     const sp = Math.hypot(p.vx, p.vy), along = Math.max(0, p.vx * p.moveDX + p.vy * p.moveDY);
-    const out = Math.max(along, sp * 0.6) * PHYS.DIVE.CARRY + PHYS.DIVE.PUSH;
+    // (every dive is a real launch: even from a standstill he leaves his feet and flies forward, never just drops)
+    if (!dirX && !dirY) { const f = Math.hypot(p.vx, p.vy) > 0.5 ? [p.vx, p.vy] : [p.faceX || 1, p.faceY || 0], k = Math.hypot(f[0], f[1]) || 1; p.moveDX = f[0] / k; p.moveDY = f[1] / k; }
+    const out = Math.max(Math.max(along, sp * 0.6) * PHYS.DIVE.CARRY + PHYS.DIVE.PUSH, PHYS.DIVE.MIN_OUT);
     p.vx = p.moveDX * out; p.vy = p.moveDY * out;
-    p.vz = (p.hasBall ? PHYS.DIVE.LIFT : PHYS.DIVE.LIFT_D) + sp * PHYS.DIVE.LIFT_K; p.z = 0.01;
+    p.vz = Math.max((p.hasBall ? PHYS.DIVE.LIFT : PHYS.DIVE.LIFT_D) + sp * PHYS.DIVE.LIFT_K, PHYS.DIVE.MIN_LIFT); p.z = 0.01;
   }
   // a swat attempt is a "jump"; the "swat" event fires once per ball, when a pass is actually batted (resolveCatch)
   w.bus.emit(move === "stiff" ? "stiffArm" : move === "hitstick" ? "hitStick" : move === "swat" ? "jump" : move, { player: p });
