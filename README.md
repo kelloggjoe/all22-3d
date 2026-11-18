@@ -1,5 +1,7 @@
 # Snack League
 
+![Snack League: a burger, hot dog, taco, pizza slice and donut celebrating at midfield](assets/cover.jpg)
+
 Eleven-on-eleven football in Three.js where every player is a snack. Draft your eleven from 25 snacks, then knock the toppings off each other with physics-driven tackles.
 The rules, playbook, AI, and controls build on the ALL-22 PRO simulation in `src/sim/`.
 
