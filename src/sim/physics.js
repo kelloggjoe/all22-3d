@@ -156,7 +156,12 @@ export function separate(w) {
       if (d2 >= rr * rr || d2 < 1e-6) continue;
       const d = Math.sqrt(d2), push = (rr - d) * 0.5;
       const ma = Math.log(4 + a.r.kg), mb = Math.log(4 + b.r.kg);
-      const ka = mb / (ma + mb), kb = ma / (ma + mb);
+      let ka = mb / (ma + mb), kb = ma / (ma + mb);
+      // a beaten tackler (stunned) gives way to the carrier: the runner slides past him, never held up by him
+      if (a.side !== b.side && (a.hasBall || b.hasBall)) {
+        const run = a.hasBall ? a : b, other = a.hasBall ? b : a;
+        if (other.stun > 0) { if (run === a) { ka = 0; kb = 1; } else { ka = 1; kb = 0; } }
+      }
       const nx = dx / d, ny = dy / d;
       if (!a.engaged) { a.x -= nx * push * ka * 2; a.y -= ny * push * ka * 2; }
       if (!b.engaged) { b.x += nx * push * kb * 2; b.y += ny * push * kb * 2; }
@@ -314,7 +319,8 @@ export function tackles(w, dt) {
     // a defender still locked up with a blocker can only reach out and grab a carrier going right past him
     const arm = Boolean(d.engaged);
     if (arm && (d.engaged === c || d.blocking)) continue;
-    const reach = (arm ? PHYS.ARM_TACKLE_DIST : PHYS.TACKLE_DIST) * (d.r.reach || 1) + (d.move === "dive" ? 0.75 : d.move === "hitstick" ? 0.4 : 0) + c.radius * 0.3;
+    const touch = d.radius + c.radius + (arm ? PHYS.CONTACT.ARM : PHYS.CONTACT.REACH); // (never short of the bodies touching)
+    const reach = Math.max(touch, (arm ? PHYS.ARM_TACKLE_DIST : PHYS.TACKLE_DIST) * (d.r.reach || 1) + c.radius * 0.3) + (d.move === "dive" ? 0.75 : d.move === "hitstick" ? 0.4 : 0);
     const dx = c.x - d.x, dy = c.y - d.y;
     if (dx * dx + dy * dy > reach * reach) continue;
     if (c.z > 1.2) continue; // hurdling/diving over
@@ -392,8 +398,12 @@ export function tackles(w, dt) {
       if (w.squad) w.truckHit(d, c);
     }
     else if (c.move === "stiff") { const m = Math.hypot(dx, dy) || 1; d.stun = 0.8; d.vx = (-dx / m) * PHYS.STIFF_PUSH; d.vy = (-dy / m) * PHYS.STIFF_PUSH; d.fly = 0.3; }
-    else if (c.move !== "juke" && c.move !== "spin") c.slow = 0.22;
-    w.bus.emit("brokenTackle", { tackler: d, carrier: c, move: c.move });
+    // the runner feels it: a stagger as big as the hit he broke (a truck or stiff arm only brushes him; a juke or spin
+    // left the tackler grabbing air)
+    const K = PHYS.CONTACT, jolt = Math.hypot(d.vx, d.vy) * Math.log(5 + d.r.kg) * (hit ? 1.7 : 1);
+    const stagger = c.move === "juke" || c.move === "spin" ? 0 : c.move === "truck" || c.move === "stiff" ? K.BRUSH : clamp(K.STAGGER + jolt * K.STAGGER_K, 0, K.STAGGER_MAX);
+    if (stagger > 0) c.slow = Math.max(c.slow, stagger);
+    w.bus.emit("brokenTackle", { tackler: d, carrier: c, move: c.move, stagger });
   }
 }
 

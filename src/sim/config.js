@@ -48,7 +48,7 @@ export const PHYS = {
   ENGAGE_DIST: 1.05,
   TACKLE_DIST: 0.95,
   TACKLE_COOLDOWN: 0.32,
-  TACKLE_BASE: 0.56,
+  TACKLE_BASE: 0.47,
   DIVE_TACKLE_BONUS: 0.16,
   HITSTICK_BONUS: 0.08, HITSTICK_WHIFF: 0.3, HITSTICK_FUMBLE: 0.09,
   // the defender a human is controlling makes his own plays count (physics.js mine): his hit stick's fumble odds ×,
@@ -72,6 +72,10 @@ export const PHYS = {
   // (TWIST radians); anyone within DIVE_AT yards dives for it, and a diver reaches DIVE_REACH
   POP: { FROM: 40, K: 0.0026, MAX: 0.1, SPEED: 3.5, SPEED_K: 0.06, VZ: 3, VZ_K: 0.04 },
   PINBALL: { BUMP: 0.75, KEEP: 0.7, BASE: 0.32, SPEED: 0.08, HANDS: 450, DIVE: 0.12, MIN: 0.08, MAX: 0.75, BOBBLES: 6, TWIST: 0.9, DIVE_AT: 3.2, DIVE_REACH: 1.35 },
+  // contact: a tackle can always reach past the two bodies (REACH yd beyond them; ARM for a blocked man's grab), so a
+  // defender touching the carrier always tries; a broken tackle staggers the runner (slowed STAGGER + STAGGER_K × the
+  // hit's momentum s, at most STAGGER_MAX; a truck or stiff arm a little: BRUSH; a juke or spin not at all)
+  CONTACT: { REACH: 0.18, ARM: 0.1, STAGGER: 0.05, STAGGER_K: 0.0018, STAGGER_MAX: 0.18, BRUSH: 0.05 },
   DOMINO: { FROM: 3, K: 0.2, MIN: 0.15, MAX: 0.95, KEEP: 0.65, DOWN: 0.55, DOWN_K: 0.05, GAP: 0.15, AGAIN: 0.7 },
   MOVE_COOLDOWN: 1.2,
   GRAVITY: 13, // yd/s^2, a little floaty-arcade

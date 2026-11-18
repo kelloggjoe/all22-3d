@@ -63,7 +63,7 @@ export class Renderer3D {
     this.stopWatchingPlayEvents?.();
     this.stopWatchingPlayEvents = null;
     this.pendingTackle = null;
-    this.flops = new Map(); this.knocks = []; this.wasDown = new Map(); this.flopPlay = -1;
+    this.flops = new Map(); this.knocks = []; this.wasDown = new Map(); this.flopPlay = -1; this.lurches = new Map();
     this.tackle = null;
     this.throwMotion = null;
     if (this.stadium) { this.scene.remove(this.stadium); this.stadium.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); }
@@ -197,6 +197,7 @@ export class Renderer3D {
       w.bus.on("brokenTackle", (e) => { if (e.move !== "truck" && e.move !== "god") knock(e.tackler, e.move === "stiff" ? "stiff" : e.move === "juke" || e.move === "spin" ? "ankles" : "bounce", e.carrier); }),
       w.bus.on("dive", (e) => knock(e.player, "dive")),
       w.bus.on("knockover", (e) => knock(e.player, "domino", e.by, e.speed)),
+      w.bus.on("brokenTackle", (e) => { if (e.stagger > 0) this.lurches.set(e.carrier, { t: 0, k: e.stagger, from: this.pos3(w, e.tackler) }); }),
       w.bus.on("slide", (e) => knock(e.player, "slide")),
     ];
     const stopThrows = w.bus.on("throw", ({ qb, ball, lob, spike }) => {
@@ -393,7 +394,18 @@ export class Renderer3D {
       ex.stance = w.phase === "presnap" && /^(LT|LG|C|RG|RT|DE1|DE2|NT|ILB2)$/.test(p.slot) && w.phaseT > 0.6;
       ex.throw = p === shot?.qb ? shot : null;
       // the receiver of a pass in the air reaches for it as it comes in (and, for a beat after the catch, holds it out)
-      ex.catchAt = null; ex.catchW = 0;
+      ex.catchAt = null; ex.catchW = 0; ex.lurch = null;
+      // a tackler closing on the runner squares up and reaches for him (so contact always reads as a tackle)
+      if (bc && bc !== p && bc.side !== p.side && w.phase === "live" && w.ball.state === "held" && p.canAct && !p.move && !p.engaged) {
+        const dx = bc.x - p.x, dy = bc.y - p.y, d = Math.hypot(dx, dy), closing = (p.vx - bc.vx) * dx + (p.vy - bc.vy) * dy;
+        if (d < 2.3 && closing > 0) {
+          const them = this.athletes.get(bc);
+          if (them) { ex.catchAt = them.chestWorld(this.catchSpot2 || (this.catchSpot2 = new THREE.Vector3())); ex.catchAt.y -= 0.25; ex.catchW = THREE.MathUtils.smoothstep(2.3 - d, 0, 1.2); ex.lunge = ex.catchW; }
+        }
+      }
+      if (!ex.catchAt) ex.lunge = 0;
+      const lu = this.lurches.get(p);
+      if (lu) { lu.t += dt; if (lu.t > 0.32 || p.down > 0) this.lurches.delete(p); else ex.lurch = lu; }
       if (ballAir && w.ball.target === p) {
         const b = w.ball, d = Math.hypot(b.x - p.x, b.y - p.y);
         if (d < 4.5) {

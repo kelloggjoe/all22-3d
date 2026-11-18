@@ -283,6 +283,13 @@ export class Athlete {
     const effort = Math.sin(Math.PI * u);
     const spin = carryMove === "spin" ? Math.PI * 2 * u * u * (3 - 2 * u) : 0;
     if (p.hasBall && sp > 2 && !mv) pitch = Math.max(pitch, 0.1);
+    if (extra.lunge > 0 && !down) pitch = Math.max(pitch, 0.35 * extra.lunge); // squared up, going in for the tackle
+    if (extra.lurch && !down) { // knocked sideways off a broken tackle: a lurch away from the hit
+      const L = extra.lurch, u = Math.sin(Math.PI * Math.min(1, L.t / 0.32)), k = Math.min(1, L.k / 0.12);
+      const awayX = this.root.position.x - L.from.x, awayZ = this.root.position.z - L.from.z;
+      const lateral = awayX * Math.cos(this.heading) - awayZ * Math.sin(this.heading); // + = the hit came from his left
+      roll += (lateral >= 0 ? -1 : 1) * 0.32 * u * k; pitch -= 0.12 * u * k;
+    }
     if (!down && sp > 3 && Math.abs(side) > 1.5 && !mv) roll += Math.max(-0.2, Math.min(0.2, -side * 0.04));
     this.play(clip, fade, rate);
     // ease the lean layers so nothing snaps
