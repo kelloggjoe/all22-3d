@@ -1,11 +1,12 @@
-// Balance sample: N CPU-vs-CPU games, points and play outcomes per game (node tests/balance.mjs 8)
+// Balance sample: N CPU-vs-CPU Snack League games (auto-drafted), points and play outcomes per game (node tests/balance.mjs 8)
 import { World } from "../src/sim/world.js";
 import { createBus } from "../src/sim/events.js";
-import { TEAM_DEFS, makeTeam } from "../src/teams.js";
+import { TEAM_DEFS, makeSnackTeam, autoDraft } from "../src/teams.js";
 const N = Number(process.argv[2] || 8), tot = {};
 const add = (k, v = 1) => { tot[k] = (tot[k] || 0) + v; };
 for (let g = 0; g < N; g++) {
-  const home = makeTeam(TEAM_DEFS[g % 8]), away = makeTeam(TEAM_DEFS[(g + 3) % 8]);
+  const hd = TEAM_DEFS[g % 8], ad = TEAM_DEFS[(g + 3) % 8], hp = autoDraft(hd);
+  const home = makeSnackTeam(hd, hp), away = makeSnackTeam(ad, autoDraft(ad, {}, new Set(Object.values(hp))));
   const bus = createBus();
   for (const ev of ["tackle", "knockover", "dominoHold", "brokenTackle", "interception", "dive", "touchdown", "fumble", "recover", "bobble", "bump"]) bus.on(ev, (e) => add(ev + (ev === "dive" ? (e.player.hasBall ? ":carrier" : ":tackler") : "")));
   bus.on("tackle", (e) => { if (e.approach && e.approach.dive) add("tackle:byDive"); });

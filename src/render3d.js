@@ -5,11 +5,13 @@ import * as THREE from "three";
 import { FIELD_W, MID_Y } from "./sim/config.js";
 import { Athlete, uniformMaterial } from "./players3d.js";
 import { kookyDNA } from "./kooky.js";
+import { Crumbs } from "./snack.js";
 import { Tackle3D, Flop3D } from "./tackle3d.js";
 import { PixelStadium, jumboInfo } from "./pixel-stadium.js";
 import { THROW_END, throwReleaseTime } from "./football-moves.js";
 
 const v3 = new THREE.Vector3();
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const BIG = new Set(["truck", "hit", "stiff", "pancake", "domino"]); // launches that take over from a lesser fall
 const lerp = (a, b, t) => a + (b - a) * t;
 
@@ -115,7 +117,7 @@ export class Renderer3D {
       const group = this.uniforms[p.teamKey];
       const key = `${look.skin ?? 0}/${look.socks ?? 0}/${look.gloves ?? 0}`;
       if (!group.has(key)) group.set(key, uniformMaterial(kit, look));
-      a = new Athlete(group.get(key), kit, { num: p.num, look, m: info.sp?.m, kg: p.r.kg, kooky: info.dna || kookyDNA(info) });
+      a = new Athlete(group.get(key), kit, { num: p.num, look, m: info.sp?.m, kg: p.r.kg, snack: info.snack, kooky: info.snackBody || info.dna || kookyDNA(info) });
       this.athletes.set(p, a);
       this.scene.add(a.root);
     }
@@ -125,7 +127,7 @@ export class Renderer3D {
   setPlayerPreview(player, kit) {
     this.clearPlayerPreview();
     const material = uniformMaterial(kit, player.look);
-    const athlete = new Athlete(material, kit, { num: player.num, look: player.look, m: player.sp.m, kg: player.sp.kg, kooky: player.dna || kookyDNA(player) });
+    const athlete = new Athlete(material, kit, { num: player.num, look: player.look, m: player.sp.m, kg: player.sp.kg, snack: player.snack, kooky: player.snackBody || player.dna || kookyDNA(player) });
     athlete.root.position.set(40, 0, -MID_Y);
     this.scene.add(athlete.root);
     this.preview = { athlete, material, time: 0 };
@@ -183,11 +185,14 @@ export class Renderer3D {
           hit: approach.hit, dive: approach.dive, arm: approach.arm,
         },
       };
+      const k = clamp((power || 30) / 45, 0.35, 1.6) * (approach.hit ? 1.5 : 1);
+      this.spill(w, carrier, k, tackler); this.spill(w, tackler, k * 0.5);
     });
     // every other knockdown: the force at the moment it happens (the sim changes velocities right after)
     const knock = (player, kind, from = null, force = 0) => {
       if (!player) return;
       this.knocks.push({ play: w.playNo, player, kind, from, force, vel: this.vel3(w, player), at: this.pos3(w, player), fromAt: from ? this.pos3(w, from) : null, fromVel: from ? this.vel3(w, from) : null, dir: this.dir3(w, player) });
+      this.spill(w, player, { truck: 1.5, hit: 1.5, pancake: 1.1, domino: 0.9, stiff: 0.8, bounce: 0.5, ankles: 0.35 }[kind] || 0, from);
     };
     const cheer = (sec) => () => this.pixel?.cheerFor(sec);
     const stopCheers = [w.bus.on("recover", cheer(2.5)), w.bus.on("touchdown", cheer(4)), w.bus.on("interception", cheer(2.5)), w.bus.on("sack", cheer(2)), w.bus.on("fieldGoal", (e) => { if (e.good) this.pixel?.cheerFor(2.5); }), w.bus.on("hitStick", (e) => { if (e.boom) this.pixel?.cheerFor(1.5); })];
@@ -199,6 +204,7 @@ export class Renderer3D {
       w.bus.on("knockover", (e) => knock(e.player, "domino", e.by, e.speed)),
       w.bus.on("brokenTackle", (e) => { if (e.stagger > 0) this.lurches.set(e.carrier, { t: 0, k: e.stagger, from: this.pos3(w, e.tackler) }); }),
       w.bus.on("slide", (e) => knock(e.player, "slide")),
+      w.bus.on("fumble", (e) => this.spill(w, e.player, 1)),
     ];
     const stopThrows = w.bus.on("throw", ({ qb, ball, lob, spike }) => {
       const direction = w.possession === "home" ? 1 : -1;
@@ -207,6 +213,15 @@ export class Renderer3D {
     this.stopWatchingPlayEvents = () => { stopTackles(); stopThrows(); for (const f of stopKnocks) f(); for (const f of stopCheers) f(); };
   }
 
+  // knock some toppings off him (pushed along by whoever hit him)
+  spill(w, p, power, by = null) {
+    if (!p || power <= 0) return;
+    const crumbs = this.athletes.get(p)?.kooky?.crumbs;
+    if (!crumbs) return;
+    this.crumbs ||= new Crumbs(this.scene);
+    const vel = this.vel3(w, p); if (by) vel.add(this.vel3(w, by));
+    this.crumbs.burst(this.pos3(w, p).add(new THREE.Vector3(0, 1.1, 0)), vel, crumbs, power);
+  }
   // three.js position / velocity / move direction of a sim player (offense coords → stadium → three.js axes)
   pos3(w, p) { const flip = w.possession !== "home"; return new THREE.Vector3(flip ? 100 - p.x : p.x, p.z, flip ? p.y - FIELD_W : -p.y); }
   vel3(w, p) { const d = w.possession !== "home" ? -1 : 1; return new THREE.Vector3(d * p.vx, p.vz || 0, -d * p.vy); }
@@ -426,6 +441,7 @@ export class Renderer3D {
     }
     tackle?.physics.update(dt);
     for (const fl of this.flops.values()) fl.update(dt);
+    this.crumbs?.update(dt);
     for (const [p, ath] of this.athletes) if (!seen.has(p)) ath.root.visible = false;
     // the ball: in the carrier's hand, in flight, or on the turf
     const b = w.ball, B = this.ballMesh;

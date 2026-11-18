@@ -1,6 +1,6 @@
-# Ragdoll Football
+# Snack League
 
-Eleven-on-eleven football in Three.js with original, generated human rosters and physics-driven tackles.
+Eleven-on-eleven football in Three.js where every player is a snack. Draft your eleven from 25 snacks, then knock the toppings off each other with physics-driven tackles.
 The rules, playbook, AI, and controls build on the ALL-22 PRO simulation in `src/sim/`.
 
 ## Play
@@ -11,14 +11,17 @@ python3 -m http.server 5180
 ```
 
 Then open http://localhost:5180. Keyboard or gamepad; HOW TO PLAY on the title screen lists every control.
-Open PLAYER GENERATOR to browse players from the current league, reroll all rosters, or play as the team on screen.
-To recreate a league, add `?roster=1234` to the URL with that league's seed.
+PLAY: pick your colors and an opponent, then draft. The board shows an offensive formation and the 25 snacks in four
+groups (Balance, Technique, Speed, Power). Pick a spot, then a snack. Your eleven play both ways: each spot also shows
+the defensive job (and the kicker) that snack takes. The CPU drafts from the snacks you leave.
 
 ## Layout
 - `src/sim/` football simulation, playbook, and input
-- `src/teams.js` eight fictional teams and their kits
-- `src/player-generator.js` seeded human players with position profiles, physical builds, traits, and gear
-- `src/kooky.js` the players' looks: DNA from each player's ratings plus seeded nonsense, built as toon blobs with ink outlines on the shared skeleton
+- `src/snacks.js` the 25 snacks: group, stats, build and card line
+- `src/teams.js` eight fictional teams and their kits; the draft (auto-draft, two-way assignments, drafted teams)
+- `src/snack.js` each snack's 3D build on the shared skeleton, and the toppings that fly off on big hits
+- `src/portraits.js` the draft board's portraits
+- `src/kooky.js` the toon look and shared building helpers (toon material, ink outline, mounting parts on bones)
 - `src/players3d.js` the athletes: model, uniform shader, helmet, pads, numbers, animation state machine
 - `src/render3d.js` stadium, field, crowd, lights, ball, play art, and the sim camera → three.js camera
 - `src/ui.js`, `src/playcall.js`, `src/menus.js` HUD, play calling, screens

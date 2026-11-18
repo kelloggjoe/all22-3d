@@ -219,7 +219,7 @@ function ribbonPixels(home, kits) {
   const D = new Uint32Array(AD_W * AD_H);
   D.fill(hexU32("#141826"));
   const hc = kits.home.jersey, ink = contrastInk(hc, kits.home.accent), short = (home.short || home.abbr).toUpperCase();
-  const ads = [["SNACK BAR", "#2a5ad8", "#f4f4ee"], [home.name.toUpperCase(), hc, ink], CHEERS[0], ["RAGDOLL FOOTBALL", "#ffd23e", "#0b0d1a"], CHEERS[1],
+  const ads = [["SNACK BAR", "#2a5ad8", "#f4f4ee"], [home.name.toUpperCase(), hc, ink], CHEERS[0], ["SNACK LEAGUE", "#ffd23e", "#0b0d1a"], CHEERS[1],
     [`GO ${short}!`, hc, ink], CHEERS[2], ["FOOTBALL NIGHT", "#1a1e33", "#5ef0ff"], ["FIRST AID", "#f4f4ee", "#e8413b"], CHEERS[3]];
   let x = 0, i = 0;
   while (x < AD_W - 40) {
@@ -399,7 +399,7 @@ const ORD = ["", "1ST", "2ND", "3RD", "4TH"];
 export function jumboInfo(w, kits) {
   const s = Math.max(0, Math.ceil(w.clock)), clock = w.phase === "over" ? "FINAL" : w.phase === "halftime" ? "HALFTIME" : `${w.ot ? "OT" : `Q${Math.min(4, w.quarter)}`} ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
   const homeO = w.possession === "home", pt = w.playType, ph = w.phase;
-  let msg = "RAGDOLL FOOTBALL";
+  let msg = "SNACK LEAGUE";
   if (ph === "over") msg = w.score.home > w.score.away ? `${w.teams.home.abbr} WINS!` : w.score.home < w.score.away ? `${w.teams.away.abbr} WINS` : "A TIE";
   else if (pt === "kickoff") msg = "KICKOFF";
   else if (pt === "punt") msg = "PUNT";

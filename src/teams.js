@@ -1,5 +1,6 @@
 // Fictional franchises, their generated rosters, and the team ratings shown in the matchup menu.
-import { ALL_SLOTS, SLOTS_OFF, SLOTS_DEF, ratingsFor, fitOf, aiFor } from "./sim/ratings.js";
+import { ALL_SLOTS, SLOTS_OFF, SLOTS_DEF, NUMBERS, ratingsFor, fitOf, aiFor } from "./sim/ratings.js";
+import { SNACKS, SNACK_BY_KEY } from "./snacks.js";
 import { createRng } from "./sim/rng.js";
 import { generatePlayer } from "./player-generator.js";
 import { applyBody } from "./body.js";
@@ -32,6 +33,55 @@ export function makeTeam(def, opts = {}) {
   const t = {
     key: def.key, name: def.name, short: def.short, abbr: def.abbr, colors: [def.jersey, def.accent], kit: { jersey: def.jersey, accent: def.accent, helmet: def.helmet, pants: def.pants },
     diff, lineup, scheme, players, boost, style: def.style, aggression: def.aggression, ai: aiFor(def, diff),
+  };
+  t.skill = t.ai.skill;
+  t.ovr = overall(t);
+  t.ratings = teamRatings(t);
+  return t;
+}
+
+// ---------- Snack League: drafted teams ----------
+// You draft 11 snacks onto the offense; they play both ways, so the defense and the kicker are filled from the same
+// 11 by fit. The CPU drafts from whatever is left.
+export const DRAFT_ORDER = ["QB", "HB", "WR1", "WR2", "TE", "FB", "LT", "LG", "C", "RG", "RT"];
+const DEF_ORDER = ["CB1", "CB2", "DE1", "DE2", "NT", "ILB1", "OLB1", "OLB2", "ILB2", "S1", "S2"];
+export const schemeOf = (def) => ({ def: def.style === "blitz" || def.style === "ground" ? "43" : "34", off: def.style === "air" ? "slot" : "fb" });
+const bestFor = (keys, slot, scheme) => keys.reduce((best, k) => (!best || fitOf(SNACK_BY_KEY[k].sp, slot, scheme) > fitOf(SNACK_BY_KEY[best].sp, slot, scheme) ? k : best), null);
+// fill the open offense slots from a pool, the most important spots first
+export function autoDraft(def, picks = {}, taken = new Set()) {
+  const scheme = schemeOf(def), out = { ...picks };
+  const used = new Set([...taken, ...Object.values(out)]);
+  for (const slot of DRAFT_ORDER) {
+    if (out[slot]) continue;
+    const k = bestFor(SNACKS.map((s) => s.key).filter((k) => !used.has(k)), slot, scheme);
+    out[slot] = k; used.add(k);
+  }
+  return out;
+}
+// the two-way assignments: defense spot → the offense slot of the snack who plays it, and the kicker
+export function twoWay(def, picks) {
+  const scheme = schemeOf(def), left = new Set(DRAFT_ORDER), byKey = Object.fromEntries(DRAFT_ORDER.map((s) => [picks[s], s]));
+  const D = {};
+  for (const slot of DEF_ORDER) {
+    const k = bestFor([...left].map((s) => picks[s]), slot, scheme);
+    D[slot] = byKey[k]; left.delete(byKey[k]);
+  }
+  D.K = byKey[bestFor(DRAFT_ORDER.map((s) => picks[s]), "K", scheme)];
+  return D;
+}
+export function makeSnackTeam(def, picks, opts = {}) {
+  const scheme = schemeOf(def), boost = opts.boost || 1, D = twoWay(def, picks);
+  const players = {}, lineup = {};
+  const make = (slot, from) => {
+    const s = SNACK_BY_KEY[picks[from]];
+    return { slot, id: `${def.key}-${s.key}-${slot}`, snack: s.key, name: s.name, full: s.name, num: NUMBERS[from], level: 15, star: 0, sp: s.sp, r: ratingsFor(s.sp, slot, scheme, boost), snackBody: s.body, look: { skin: 0, socks: 0, gloves: 0 } };
+  };
+  for (const slot of SLOTS_OFF) players[slot] = make(slot, slot);
+  for (const slot of [...SLOTS_DEF, "K"]) players[slot] = make(slot, D[slot]);
+  for (const slot of Object.keys(players)) lineup[slot] = players[slot].id;
+  const t = {
+    key: def.key, name: def.name, short: def.short, abbr: def.abbr, colors: [def.jersey, def.accent], kit: { jersey: def.jersey, accent: def.accent, helmet: def.helmet, pants: def.pants },
+    diff: def.diff, lineup, scheme, players, boost, style: def.style, aggression: def.aggression, ai: aiFor(def, def.diff), picks, twoWay: D,
   };
   t.skill = t.ai.skill;
   t.ovr = overall(t);

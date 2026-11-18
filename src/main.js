@@ -1,4 +1,4 @@
-// Ragdoll Football: boot, the fixed 60 Hz simulation loop, the match flow (play calls,
+// Snack League: boot, the fixed 60 Hz simulation loop, the match flow (play calls,
 // kicks, coin toss, halftime, the final) and the 3D presentation.
 import { World } from "./sim/world.js";
 import { createBus } from "./sim/events.js";
@@ -11,7 +11,7 @@ import { cap } from "./sim/bindings.js";
 import { RULES, KICKING, HARD, FIELD_W } from "./sim/config.js";
 import { DEF_AUDIBLES, basePlay } from "./sim/playbook.js";
 import * as AI from "./sim/ai.js";
-import { TEAM_DEFS, TEAM_BY_KEY, makeTeam, kitsFor, rateSlot } from "./teams.js";
+import { TEAM_DEFS, TEAM_BY_KEY, makeSnackTeam, autoDraft, kitsFor, rateSlot } from "./teams.js";
 import { loadAthleteAssets } from "./players3d.js";
 import { Renderer3D } from "./render3d.js";
 import { UI } from "./ui.js";
@@ -177,8 +177,8 @@ class App {
   }
   // the title: a CPU-vs-CPU game under the orbiting camera
   startAttract() {
-    const a = makeTeam(TEAM_DEFS[this.seed % TEAM_DEFS.length], { seed: this.rosterSeed });
-    const b = makeTeam(TEAM_DEFS[(this.seed + 3) % TEAM_DEFS.length], { seed: this.rosterSeed });
+    const da = TEAM_DEFS[this.seed % TEAM_DEFS.length], db = TEAM_DEFS[(this.seed + 3) % TEAM_DEFS.length];
+    const pa = autoDraft(da), a = makeSnackTeam(da, pa), b = makeSnackTeam(db, autoDraft(db, {}, new Set(Object.values(pa))));
     const w = new World({ bus: createBus(), home: a, away: b, seed: this.seed + 3, user: "home", autopilot: true, quarterSec: 600 });
     w.rateSlot = rateSlot;
     this.attract = w; this.attractRosterSeed = this.rosterSeed; w.start();
@@ -188,12 +188,14 @@ class App {
     this.r.watchPlayEvents(w);
     this.mode = "title";
   }
-  startGame(userKey, oppKey) {
+  // picks: the user's drafted offense ({ slot: snack key }); the CPU drafts from the snacks left over
+  startGame(userKey, oppKey, picks = null) {
     this.ui.clear(); this.ui.hidePanel();
     this.lastUser = userKey; this.lastOpp = oppKey;
-    const d = this.settings.difficulty;
-    const team = makeTeam(TEAM_BY_KEY[userKey], { seed: this.rosterSeed });
-    const opp = makeTeam(TEAM_BY_KEY[oppKey], { seed: this.rosterSeed, boost: d >= 5 ? 1.08 : d >= 4 ? 1.04 : 1 });
+    const d = this.settings.difficulty, ud = TEAM_BY_KEY[userKey], od = TEAM_BY_KEY[oppKey];
+    picks = picks || autoDraft(ud); this.lastPicks = picks;
+    const team = makeSnackTeam(ud, picks);
+    const opp = makeSnackTeam(od, autoDraft(od, {}, new Set(Object.values(picks))), { boost: d >= 5 ? 1.08 : d >= 4 ? 1.04 : 1 });
     if (d >= 4) { opp.ai = { ...opp.ai, skill: Math.max(opp.ai.skill, HARD.MASTER_SKILL || 0.9), read: Math.min(opp.ai.read, HARD.MASTER_READ != null ? HARD.MASTER_READ : 0) }; opp.skill = opp.ai.skill; }
     this.kits = kitsFor(team, opp);
     team.kit = this.kits.home; opp.kit = this.kits.away;

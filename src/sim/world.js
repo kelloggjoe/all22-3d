@@ -866,7 +866,7 @@ export class World {
     // when the CPU snaps, on the play clock: a hurry-up (a spike) so long after the whistle, a team running out the
     // clock at :02, one milking it for the last snap's field goal once the game clock is down to the kick's (ai.milkAt),
     // a normal huddle about :23 (its line-up after the break: cpuSet)
-    // (Ragdoll Football: whatever the tempo, the CPU snaps as soon as it's set — it never sits on the play clock)
+    // (Snack League: whatever the tempo, the CPU snaps as soon as it's set — it never sits on the play clock)
     const at = this.playClock - this.cpuSet(true);
     this.tempo = { kind, snapAt: Math.max(0, at) };
     return true;

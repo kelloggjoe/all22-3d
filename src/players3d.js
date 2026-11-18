@@ -7,6 +7,7 @@ import { clone as cloneSkinned } from "three/addons/utils/SkeletonUtils.js";
 import { FootballMoves, THROW_END } from "./football-moves.js";
 import { SKIN_TONES } from "./player-generator.js";
 import { KookyBody } from "./kooky.js";
+import { SnackBody } from "./snack.js";
 
 export const YD = 1 / 0.9144; // meters → yards (the model is in meters, the stadium in yards)
 
@@ -150,7 +151,7 @@ export class Athlete {
       this.attach("Head", this.headGear);
       const nm = new THREE.MeshBasicMaterial({ map: numberTexture(info.num, kit.number || "#ffffff", "rgba(0,0,0,0.55)"), transparent: true, depthWrite: false, toneMapped: false });
       this.gearMaterials = new Set([nm]);
-      this.kooky = new KookyBody(this, kit, info.num, kooky, nm);
+      this.kooky = info.snack ? new SnackBody(this, kit, info.num, kooky, nm, info.snack) : new KookyBody(this, kit, info.num, kooky, nm);
     } else this.dressUp(kit, info.num, info.look || {});
     this.mixer = new THREE.AnimationMixer(this.model);
     this.actions = {};

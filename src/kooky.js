@@ -26,14 +26,14 @@ const INK = new THREE.ShaderMaterial({
   fragmentShader: "uniform vec3 color; void main(){ gl_FragColor = vec4(color, 1.0); }",
   side: THREE.BackSide,
 });
-const SPHERE = new THREE.SphereGeometry(1, 20, 14);
-const SPHERE_LO = new THREE.SphereGeometry(1, 10, 8);
+export const SPHERE = new THREE.SphereGeometry(1, 20, 14);
+export const SPHERE_LO = new THREE.SphereGeometry(1, 10, 8);
 const CONE = new THREE.ConeGeometry(1, 1, 12); CONE.translate(0, 0.5, 0);
-const BOX = (() => { const g = new THREE.BoxGeometry(2, 2, 2, 4, 4, 4), p = g.attributes.position, v = new THREE.Vector3(); for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); v.lerp(v.clone().normalize().multiplyScalar(1.25), 0.45); p.setXYZ(i, v.x, v.y, v.z); } g.computeVertexNormals(); return g; })();
-const TORUS = new THREE.TorusGeometry(1, 0.18, 6, 16, Math.PI);
+export const BOX = (() => { const g = new THREE.BoxGeometry(2, 2, 2, 4, 4, 4), p = g.attributes.position, v = new THREE.Vector3(); for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); v.lerp(v.clone().normalize().multiplyScalar(1.25), 0.45); p.setXYZ(i, v.x, v.y, v.z); } g.computeVertexNormals(); return g; })();
+export const TORUS = new THREE.TorusGeometry(1, 0.18, 6, 16, Math.PI);
 const MASK = new THREE.TorusGeometry(1, 0.035, 5, 18, Math.PI * 0.75); MASK.rotateZ(Math.PI * 0.125);
 
-function part(geo, hex, ink = true, shadow = false) {
+export function part(geo, hex, ink = true, shadow = false) {
   const m = new THREE.Mesh(geo, toon(hex));
   m.castShadow = shadow;
   if (ink) m.add(new THREE.Mesh(geo, INK));
@@ -44,7 +44,7 @@ function part(geo, hex, ink = true, shadow = false) {
 const _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _a = new THREE.Vector3(), _b = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
 // put a part on a bone at a world position / orientation / world radii (taken in the bind pose)
-function mount(bone, mesh, center, quat, radii) {
+export function mount(bone, mesh, center, quat, radii) {
   bone.updateWorldMatrix(true, false);
   bone.matrixWorld.decompose(_p, _q, _s);
   mesh.position.copy(center); bone.worldToLocal(mesh.position);
@@ -53,13 +53,13 @@ function mount(bone, mesh, center, quat, radii) {
   bone.add(mesh);
   return mesh;
 }
-const wp = (bone) => bone.getWorldPosition(new THREE.Vector3());
-const along = (a, b) => new THREE.Quaternion().setFromUnitVectors(UP, _a.subVectors(b, a).normalize());
-const ID = new THREE.Quaternion();
-const V = (x, y, z) => new THREE.Vector3(x, y, z);
+export const wp = (bone) => bone.getWorldPosition(new THREE.Vector3());
+export const along = (a, b) => new THREE.Quaternion().setFromUnitVectors(UP, _a.subVectors(b, a).normalize());
+export const ID = new THREE.Quaternion();
+export const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
 // stretch the skeleton for this DNA (bone offsets: the KOOKY clips carry rotations only, so these stay)
-function reshape(bones, d) {
+export function reshape(bones, d) {
   const s = (name, k) => { const b = bones[name]; if (b) b.position.multiplyScalar(k); };
   for (const n of ["spine_02", "spine_03"]) s(n, d.torso);
   s("neck_01", d.torso); s("Head", d.neck);

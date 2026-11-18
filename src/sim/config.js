@@ -60,7 +60,7 @@ export const PHYS = {
   // the heavier he is than the tackler: (speed − FROM) × K yd/s, at most MAX, times √(his kg / the tackler's) in
   // 0.7–1.5. The tackler slides that off while he's down (×0.86 a step): about a yard at full speed, nothing at a jog
   TRUCK_FLING: { FROM: 3.5, K: 2.6, MAX: 10 },
-  // (Ragdoll Football) a dive's launch on his momentum: CARRY × his speed along the dive + PUSH (yd/s), LIFT (LIFT_D
+  // (Snack League) a dive's launch on his momentum: CARRY × his speed along the dive + PUSH (yd/s), LIFT (LIFT_D
   // for a tackler) + LIFT_K × speed up; a pancake / stiff arm's shove (yd/s); a giant head's pull on a hit stick
   DIVE: { CARRY: 1.15, PUSH: 1.5, LIFT: 2.2, LIFT_D: 1.2, LIFT_K: 0.26 }, PANCAKE_PUSH: 4.2, STIFF_PUSH: 4.5, HEAD_TARGET: 0.09,
   // dominoes: a body flying faster than FROM yd/s knocks over whoever he hits (odds K per yd/s over FROM, × the weight
@@ -416,7 +416,7 @@ export const RUN_BLOCK = { SCHEME: true, CLIMB: [0.4, 0.3], HOLD: 0.6, PUSH: 0.3
 
 export const TIMING = {
   DEAD_SEC: 1.6,
-  PRESNAP_CPU_SEC: 0.7, // (Ragdoll Football: the CPU lines up and snaps quickly, no clock games)
+  PRESNAP_CPU_SEC: 0.7, // (Snack League: the CPU lines up and snaps quickly, no clock games)
   HUDDLE_SEC: 0.5,
   BANNER_SEC: 1.6,
   REPLAY_SEC: 5.5,
