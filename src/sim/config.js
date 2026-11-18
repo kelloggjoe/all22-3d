@@ -65,6 +65,13 @@ export const PHYS = {
   DIVE: { CARRY: 1.15, PUSH: 1.5, LIFT: 2.2, LIFT_D: 1.2, LIFT_K: 0.26 }, PANCAKE_PUSH: 4.2, STIFF_PUSH: 4.5, HEAD_TARGET: 0.09,
   // dominoes: a body flying faster than FROM yd/s knocks over whoever he hits (odds K per yd/s over FROM, × the weight
   // ratio's square root, ÷ the victim's footing), passing on KEEP of his speed; a knocked man is down DOWN + DOWN_K × speed
+  // loose-ball pinball: a big hit pops it (fumble odds + K per point of impact power over FROM, at most MAX; the ball
+  // out at SPEED + SPEED_K × power, up VZ + VZ_K × power); a loose fumble caroms off any body it meets (BUMP yd: the
+  // bounce keeps KEEP of its speed plus the body's), a man reaching for it bobbles it (BASE + SPEED × its speed − his
+  // hands over 75 ÷ HANDS, a diver less: DIVE; at most MAX, never past BOBBLES), and it hops off the turf at random
+  // (TWIST radians); anyone within DIVE_AT yards dives for it, and a diver reaches DIVE_REACH
+  POP: { FROM: 40, K: 0.0026, MAX: 0.1, SPEED: 3.5, SPEED_K: 0.06, VZ: 3, VZ_K: 0.04 },
+  PINBALL: { BUMP: 0.75, KEEP: 0.7, BASE: 0.32, SPEED: 0.08, HANDS: 450, DIVE: 0.12, MIN: 0.08, MAX: 0.75, BOBBLES: 6, TWIST: 0.9, DIVE_AT: 3.2, DIVE_REACH: 1.35 },
   DOMINO: { FROM: 3, K: 0.2, MIN: 0.15, MAX: 0.95, KEEP: 0.65, DOWN: 0.55, DOWN_K: 0.05, GAP: 0.15, AGAIN: 0.7 },
   MOVE_COOLDOWN: 1.2,
   GRAVITY: 13, // yd/s^2, a little floaty-arcade

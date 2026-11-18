@@ -229,7 +229,8 @@ class App {
     bus.on("patResult", (e) => ui.toast(e.good ? "EXTRA POINT IS GOOD" : e.blocked ? "PAT BLOCKED" : "EXTRA POINT NO GOOD", 1400));
     bus.on("twoPoint", (e) => { if (e.setup) ui.toast("2-POINT TRY", 1200); else ui.banner(e.good ? "2-POINT CONVERSION" : "NO GOOD", "", e.good ? col(e.team) : "#5a6068", 1600); });
     bus.on("interception", (e) => { ui.banner("INTERCEPTED", nm(e.player), col(e.player.teamKey), 2000); this.shake = 0.5; });
-    bus.on("fumble", (e) => { if (!e.muff) ui.toast("FUMBLE", 1200); });
+    bus.on("fumble", (e) => { if (!e.muff) { ui.toast("FUMBLE", 1200); this.shake = Math.max(this.shake, 0.35); } });
+    bus.on("bobble", (e) => ui.toast(`BOBBLED · ${e.player.num} ${e.player.name.toUpperCase()}`, 900));
     bus.on("turnover", (e) => { if (e.kind === "downs") ui.banner("TURNOVER ON DOWNS", "", "#5a6068", 1700); else if (e.kind === "fumble" || e.kind === "muff") ui.banner("FUMBLE RECOVERED", "", col(w.possession), 1700); });
     bus.on("sack", (e) => { ui.banner("SACK", nm(e.tackler), col(e.tackler ? e.tackler.teamKey : w.defTeam), 1400); this.shake = 0.45; });
     bus.on("safety", (e) => ui.banner("SAFETY", team(e.team).name.toUpperCase(), col(e.team), 2000));

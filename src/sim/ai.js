@@ -572,7 +572,14 @@ function rusherPress(w, p) {
 function chaseLoose(w, p) {
   const b = w.ball;
   const d = p.distTo(b.x, b.y);
-  if (d < 16) { steer(p, b.x, b.y, 1.1); p.sprint = true; } else p.want = 0;
+  if (d < 16) { steer(p, b.x, b.y, 1.1); p.sprint = true; diveForBall(w, p, d); } else p.want = 0;
+}
+// a loose fumble close by: dive on it (a dogpile — the divers knock each other over: dominoes)
+function diveForBall(w, p, d = p.distTo(w.ball.x, w.ball.y)) {
+  const b = w.ball;
+  if (b.state !== "loose" || b.kind !== "fumble" || b.z > 1.2 || d > PHYS.PINBALL.DIVE_AT || d < 0.6 || p.move || p.moveCool > 0 || !p.canAct) return;
+  // aim where it will be in a beat
+  startMove(w, p, "dive", b.x + b.vx * 0.25 - p.x, b.y + b.vy * 0.25 - p.y);
 }
 // a ball carrier on a return of a blocked kick: his team escorts, the other team pursues
 function returnPlay(w, p, c) {
@@ -1145,7 +1152,7 @@ function defThink(w, p, dt) {
     }
     if (b.target) { pursue(p, b.target, 0.6); return; }
   }
-  if (b.state === "loose") { steer(p, b.x, b.y, 1.1); p.sprint = true; return; }
+  if (b.state === "loose") { steer(p, b.x, b.y, 1.1); p.sprint = true; diveForBall(w, p); return; }
   const pre = !w.handedOff && !w.passThrown && c === w.qb;
   // play action: the second level bites on the fake, except that a defender who already carries a receiver (his man,
   // or a route runner inside his underneath zone) only takes a read step: the slot slipping out into the flat isn't
@@ -1364,7 +1371,7 @@ function kickThink(w, p, dt) {
   if (p === ret && !p.hasBall) {
     if (kicked && w.letGo) letItGo(w, p);
     else if (kicked && b.state === "air") { steer(p, b.tx, b.ty, 1.1); p.sprint = true; }
-    else if (b.state === "loose") { steer(p, b.x, b.y, 1.1); p.sprint = true; }
+    else if (b.state === "loose") { steer(p, b.x, b.y, 1.1); p.sprint = true; diveForBall(w, p); }
     else p.want = 0;
     return;
   }

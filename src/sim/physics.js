@@ -363,7 +363,8 @@ export function tackles(w, dt) {
       const fp = (PHYS.FUMBLE_BASE + (hit ? PHYS.HITSTICK_FUMBLE : 0)) * clamp(110 / (c.r.toughness + 40), 0.6, 1.6) * (w.fumbleMult || 1)
         * (d.trait && d.trait.key === "enforcer" ? 1.2 : 1) * (c.trait && c.trait.key === "sure-hands" ? .7 : 1)
         * (c.trait && c.trait.key === "secure" ? .5 : 1) * (d.trait && d.trait.key === "strip-artist" ? 1.35 : 1)
-        * userFumbleMult(w, d, hit);
+        * userFumbleMult(w, d, hit)
+        + clamp((power - PHYS.POP.FROM) * PHYS.POP.K, 0, PHYS.POP.MAX); // (a big hit pops it loose: pinball)
       d.anim = "tackle"; d.animT = 0;
       if (d.move !== "dive") { d.down = 0.7; d.lie = 1; }
       c.down = 1.0; c.lie = 1; c.flash = 0.1;
@@ -372,7 +373,7 @@ export function tackles(w, dt) {
       if (hit) w.bus.emit("hitStick", { tackler: d, carrier: c, power, boom: true });
       if (c.move === "truck") w.bus.emit("truck", { player: c, defender: d, failed: true });
       if (w.ball.kind !== "kickwait" && w.rng.chance(fp) && !w.noFumbles) {
-        fumble(w, c, d);
+        fumble(w, c, d, power);
         w.bus.emit("tackle", { tackler: d, carrier: c, power, approach, fumble: true });
         return;
       }
@@ -428,14 +429,14 @@ export function dominoes(w) {
   }
 }
 
-export function fumble(w, carrier, by) {
-  const b = w.ball;
+export function fumble(w, carrier, by, power = 0) {
+  const b = w.ball, POP = PHYS.POP;
   carrier.hasBall = false;
   b.state = "loose"; b.kind = "fumble"; b.carrier = null;
   b.x = carrier.x; b.y = carrier.y; b.z = 0.8;
-  const a = w.rng.next() * Math.PI * 2;
-  b.vx = Math.cos(a) * 3.5 + carrier.vx * 0.3; b.vy = Math.sin(a) * 3.5 * parOf(w) + carrier.vy * 0.3; b.vz = 3;
-  b.t = 0;
+  const a = w.rng.next() * Math.PI * 2, out = POP.SPEED + Math.max(0, power - POP.FROM) * POP.SPEED_K;
+  b.vx = Math.cos(a) * out + carrier.vx * 0.3; b.vy = Math.sin(a) * out * parOf(w) + carrier.vy * 0.3; b.vz = POP.VZ + Math.max(0, power - POP.FROM) * POP.VZ_K;
+  b.t = 0; b.bobbles = 0; b.bumpBy = null; b.bumpT = -9;
   carrier.down = 1.0; carrier.lie = 1;
   w.fumbleBy = carrier;
   if (w.squad) w.fumbled(carrier, by);
@@ -536,7 +537,14 @@ export function ballStep(w, dt) {
   if (b.state === "loose") {
     b.t += dt;
     b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt; b.vz -= PHYS.GRAVITY * dt;
-    if (b.z <= 0) { b.z = 0; b.vz = Math.abs(b.vz) > 2 ? -b.vz * 0.35 : 0; b.vx *= 0.7; b.vy *= 0.7; }
+    if (b.z <= 0) {
+      const hop = Math.abs(b.vz) > 2;
+      b.z = 0; b.vz = hop ? -b.vz * (b.kind === "fumble" ? 0.5 : 0.35) : 0; b.vx *= 0.7; b.vy *= 0.7;
+      if (hop && b.kind === "fumble" && w.phase === "live") { // a football's hop: off at an angle nobody can call
+        const t = (w.rng.next() - 0.5) * 2 * PHYS.PINBALL.TWIST, c = Math.cos(t), s = Math.sin(t), vx = b.vx;
+        b.vx = vx * c - b.vy * s; b.vy = vx * s + b.vy * c;
+      }
+    }
     b.vx *= 1 - 0.9 * dt; b.vy *= 1 - 0.9 * dt;
     looseBall(w, dt);
   }
@@ -800,6 +808,7 @@ export function looseBall(w, dt) {
     return;
   }
   if (b.kind === "rolling" && b.x >= 100) { w.endPlay({ type: "touchback", x: 100, carrierSide: "D", stop: true }); return; }
+  if (b.kind === "fumble") bump(w, b);
   if (b.t < 0.3 || b.z > 1.0) return;
   // rolling punt stops → downed (one the returner let go and nobody's at: dead where it lies, the receiving team's ball)
   if (b.kind === "rolling" && Math.hypot(b.vx, b.vy) < 0.5 && b.t > 1.2) {
@@ -812,8 +821,9 @@ export function looseBall(w, dt) {
   let best = null, bd = 0.85;
   for (const p of w.players) {
     // (a punt let go: the receiving team stays off it, ai.js kickThink — it never picks it up)
-    if (!p.canAct || (onside && p.side === "O" && !w.onsideFree) || (w.letGo && p.side === "D")) continue;
-    const d = p.distTo(b.x, b.y);
+    const diver = b.kind === "fumble" && p.move === "dive" && p.z < 0.6;
+    if ((!p.canAct && !diver) || (onside && p.side === "O" && !w.onsideFree) || (w.letGo && p.side === "D")) continue;
+    const d = p.distTo(b.x, b.y) - (diver ? PHYS.PINBALL.DIVE_REACH - 0.85 : 0);
     if (d < bd) { bd = d; best = p; }
   }
   if (!best) return;
@@ -844,7 +854,18 @@ export function looseBall(w, dt) {
     if (w.isUserTeam(best.teamKey) && !w.autopilot) w.control = best;
     return;
   }
-  // fumble recovery ends the play at the spot
+  // fumble recovery ends the play at the spot … unless he bobbles it (pinball: it squirts off him, still live)
+  if (b.kind === "fumble") {
+    const B = PHYS.PINBALL, sp = Math.hypot(b.vx, b.vy), diving = best.move === "dive";
+    const odds = clamp(B.BASE + sp * B.SPEED - (best.r.hands - 75) / B.HANDS - (diving ? B.DIVE : 0), B.MIN, B.MAX);
+    if ((b.bobbles || 0) < B.BOBBLES && w.rng.chance(odds)) {
+      b.bobbles = (b.bobbles || 0) + 1;
+      carom(w, b, best, 2.5 + w.rng.next() * 2);
+      best.stun = Math.max(best.stun, 0.2);
+      w.bus.emit("bobble", { player: best });
+      return;
+    }
+  }
   const lostBy = w.fumbleBy;
   b.state = "held"; b.carrier = best; best.hasBall = true; b.kind = "";
   w.bus.emit("recover", { player: best });
@@ -856,6 +877,30 @@ export function looseBall(w, dt) {
   if (best.side === "O" && best.x <= 0) { w.endPlay({ type: "safety", x: best.x, carrierSide: "O", fumble: true, lost, stop: true }); return; }
   if (best.side === "O" && best.x >= 100) { w.endPlay({ type: "td", x: 100, carrierSide: "O", carrier: best, fumble: true, lost, stop: true }); return; }
   w.endPlay({ type: "recovery", x: best.x, carrierSide: best.side, fumble: true, lost, stop: true });
+}
+// pinball: the loose ball off a body (away from his middle, his own motion in it), up in the air again
+function carom(w, b, p, up) {
+  const B = PHYS.PINBALL;
+  let nx = b.x - p.x, ny = b.y - p.y;
+  const n = Math.hypot(nx, ny);
+  if (n < 1e-3) { const a = w.rng.next() * Math.PI * 2; nx = Math.cos(a); ny = Math.sin(a); } else { nx /= n; ny /= n; }
+  const sp = Math.hypot(b.vx, b.vy), into = b.vx * nx + b.vy * ny;
+  if (into < 0) { b.vx -= 2 * into * nx; b.vy -= 2 * into * ny; } // reflected off him
+  const spread = (w.rng.next() - 0.5) * 1.2, c = Math.cos(spread), s = Math.sin(spread), vx = b.vx;
+  b.vx = (vx * c - b.vy * s) * B.KEEP + p.vx * 0.5 + nx * 1.5; b.vy = (vx * s + b.vy * c) * B.KEEP + p.vy * 0.5 + ny * 1.5;
+  if (Math.hypot(b.vx, b.vy) < 2) { b.vx += nx * 2.5; b.vy += ny * 2.5; }
+  b.vz = Math.max(b.vz, up); b.z = Math.max(b.z, 0.4); b.t = 0.15; b.bumpBy = p; b.bumpT = w.t;
+}
+// a moving loose fumble that runs into a body (standing or down: the pile is a bumper) caroms off it
+function bump(w, b) {
+  if (b.z > 1.6 || Math.hypot(b.vx, b.vy) < 3) return;
+  for (const p of w.players) {
+    if (p === b.bumpBy && w.t - b.bumpT < 0.35) continue;
+    if (p.distTo(b.x, b.y) > PHYS.PINBALL.BUMP) continue;
+    carom(w, b, p, 1.6 + w.rng.next() * 1.6);
+    w.bus.emit("bump", { player: p });
+    return;
+  }
 }
 // PRO to LEGEND (difficulty.js w.hard): the CPU's tackler on the human's ball carrier → its level (1–4), else 0
 const hardTackle = (w, d, c) => (w.hard && !w.autopilot && w.isUserTeam(c.teamKey) && !w.isUserTeam(d.teamKey) ? w.hard : 0);

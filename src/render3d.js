@@ -190,7 +190,7 @@ export class Renderer3D {
       this.knocks.push({ play: w.playNo, player, kind, from, force, vel: this.vel3(w, player), at: this.pos3(w, player), fromAt: from ? this.pos3(w, from) : null, fromVel: from ? this.vel3(w, from) : null, dir: this.dir3(w, player) });
     };
     const cheer = (sec) => () => this.pixel?.cheerFor(sec);
-    const stopCheers = [w.bus.on("touchdown", cheer(4)), w.bus.on("interception", cheer(2.5)), w.bus.on("sack", cheer(2)), w.bus.on("fieldGoal", (e) => { if (e.good) this.pixel?.cheerFor(2.5); }), w.bus.on("hitStick", (e) => { if (e.boom) this.pixel?.cheerFor(1.5); })];
+    const stopCheers = [w.bus.on("recover", cheer(2.5)), w.bus.on("touchdown", cheer(4)), w.bus.on("interception", cheer(2.5)), w.bus.on("sack", cheer(2)), w.bus.on("fieldGoal", (e) => { if (e.good) this.pixel?.cheerFor(2.5); }), w.bus.on("hitStick", (e) => { if (e.boom) this.pixel?.cheerFor(1.5); })];
     const stopKnocks = [
       w.bus.on("truck", (e) => { if (!e.failed && e.defender) knock(e.defender, "truck", e.player, e.fling || 0); }),
       w.bus.on("pancake", (e) => knock(e.defender, "pancake", e.blocker)),
@@ -432,11 +432,14 @@ export class Renderer3D {
     } else {
       B.position.set(bX, Math.max(0.12, b.z || 0), -bY);
       const vx = flipC ? -b.vx : b.vx, vy = flipC ? -b.vy : b.vy;
-      if (b.state === "air" && Math.hypot(vx, vy) > 1) { B.rotation.set(0, Math.atan2(vx, -vy), 0); B.rotateX(-Math.atan2(b.vz || 0, Math.hypot(vx, vy)) * 0.8); if (b.kind === "pass" || b.kind === "lob") B.rotateZ(performance.now() * 0.03); else B.rotateX(performance.now() * 0.02); }
+      if (b.state === "loose" && Math.hypot(vx, vy) > 0.4) { // a loose ball tumbles end over end, faster the faster it goes
+        this.tumble = (this.tumble || 0) + Math.hypot(vx, vy) * dt * 2.2;
+        B.rotation.set(0, Math.atan2(vx, -vy), 0); B.rotateX(this.tumble); B.rotateZ(this.tumble * 0.37);
+      } else if (b.state === "air" && Math.hypot(vx, vy) > 1) { B.rotation.set(0, Math.atan2(vx, -vy), 0); B.rotateX(-Math.atan2(b.vz || 0, Math.hypot(vx, vy)) * 0.8); if (b.kind === "pass" || b.kind === "lob") B.rotateZ(performance.now() * 0.03); else B.rotateX(performance.now() * 0.02); }
       windingUp = this.drawThrowRelease(w);
     }
     this.ballShadow.position.set(B.position.x, 0.02, B.position.z);
-    this.ballShadow.visible = b.state === "air" && !windingUp;
+    this.ballShadow.visible = (b.state === "air" || (b.state === "loose" && b.z > 0.05)) && !windingUp;
     // lines
     const showLines = opts.showLines;
     this.losLine.visible = showLines && opts.losX != null; this.fdLine.visible = showLines && opts.fdX != null;
