@@ -59,13 +59,13 @@ export const PHYS = {
   // a truck that knocks the tackler down flings him back the way the carrier runs, harder the faster the carrier and
   // the heavier he is than the tackler: (speed − FROM) × K yd/s, at most MAX, times √(his kg / the tackler's) in
   // 0.7–1.5. The tackler slides that off while he's down (×0.86 a step): about a yard at full speed, nothing at a jog
-  TRUCK_FLING: { FROM: 3, K: 6, MAX: 24 },
+  TRUCK_FLING: { FROM: 3, K: 8, MAX: 30 },
   // (Snack League) how silly the hits are: the sim slides a flying body farther (KEEP of his speed a step instead of
   // 0.86) and the ragdolls launch LAUNCH × farther and LIFT × higher (render3d.js / tackle3d.js read this too)
-  SILLY: { KEEP: 0.968, LAUNCH: 2.3, LIFT: 1.9, DRIVE: 1.5, TACKLE: 1.7 },
+  SILLY: { KEEP: 0.975, LAUNCH: 3.2, LIFT: 2.5, DRIVE: 1.9, TACKLE: 2.6, POP: 0.8, POP_K: 0.32 },
   // (Snack League) a dive's launch on his momentum: CARRY × his speed along the dive + PUSH (yd/s), LIFT (LIFT_D
   // for a tackler) + LIFT_K × speed up, never less than MIN_OUT forward and MIN_LIFT up; a pancake / stiff arm's shove (yd/s); a giant head's pull on a hit stick
-  DIVE: { CARRY: 1.15, PUSH: 1.5, LIFT: 2.2, LIFT_D: 1.2, LIFT_K: 0.26, MIN_OUT: 5, MIN_LIFT: 2.6 }, PANCAKE_PUSH: 9, STIFF_PUSH: 10, HEAD_TARGET: 0.09,
+  DIVE: { CARRY: 0.85, PUSH: 1.5, LIFT: 3.0, LIFT_D: 2.4, LIFT_K: 0.26, MIN_OUT: 5, MIN_LIFT: 3.8 }, PANCAKE_PUSH: 12, STIFF_PUSH: 13, HEAD_TARGET: 0.09,
   // dominoes: a body flying faster than FROM yd/s knocks over whoever he hits (odds K per yd/s over FROM, × the weight
   // ratio's square root, ÷ the victim's footing), passing on KEEP of his speed; a knocked man is down DOWN + DOWN_K × speed
   // loose-ball pinball: a big hit pops it (fumble odds + K per point of impact power over FROM, at most MAX; the ball

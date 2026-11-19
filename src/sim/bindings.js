@@ -62,7 +62,7 @@ export const ACTIONS = [
   A("spin", "SPIN", "run", ["run"], ["f"], [1]),
   A("stiff", "STIFF ARM", "run", ["run"], ["r"], [2]),
   A("truck", "TRUCK", "run", ["run"], ["t"], [3]),
-  A("dive", "DIVE / QB SLIDE", "run", ["run"], ["c"], [5], { note: "IN YOUR OWN END ZONE ON A RETURN: KNEEL" }),
+  A("dive", "DIVE", "run", ["run"], ["c"], [5], { note: "IN YOUR OWN END ZONE ON A RETURN: KNEEL" }),
   A("lateral", "LATERAL", "run", ["run"], ["x"], [4], { note: "TO THE NEAREST TEAMMATE BEHIND THE BALL" }),
   A("switchPre", "SWITCH (PRE-SNAP)", "def", ["lineD"], ["space"], [0, 1]),
   A("tackle", "TACKLE", "def", ["def"], ["f"], [0]),

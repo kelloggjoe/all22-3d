@@ -1666,10 +1666,7 @@ export class World {
       else if (name === "spin") P.startMove(this, p, "spin", fwdX, 0);
       else if (name === "stiff") P.startMove(this, p, "stiff", fwdX, 0);
       else if (name === "truck") P.startMove(this, p, "truck", fwdX, 0);
-      else if (name === "dive") {
-        if (p.slot === "QB" && this.playType === "normal" && !this.handedOff) P.startMove(this, p, "slide", fwdX, 0);
-        else P.startMove(this, p, "dive", p.mx || fwdX, p.my || 0);
-      }
+      else if (name === "dive") P.startMove(this, p, "dive", p.mx || fwdX, p.my || 0); // (Snack League: the QB dives too, no slides)
       return;
     }
     // defense / no ball

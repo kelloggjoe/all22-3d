@@ -150,7 +150,7 @@ export class Controls {
     for (const x of list) if (!x.when || x.when(w, this)) out.push(x.act === "dive" ? VARIANT.dive[this.diveLabel()] : x.act === "kickType" ? VARIANT.kickType[this.nextKickType()] : x);
     return out;
   }
-  diveLabel() { const w = this.world, c = w && w.control; return c && c === w.qb && w.playType === "normal" && !w.handedOff ? "SLIDE" : "DIVE"; }
+  diveLabel() { return "DIVE"; } // (Snack League: everyone dives, the QB too)
 
   // ---------- input dispatch ----------
   onInput(n, a) {

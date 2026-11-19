@@ -187,7 +187,7 @@ export class Tackle3D {
     const closing = Math.max(0, delta.subVectors(tacklerSpeed, carrierSpeed).dot(normal));
     const impulse = Math.min(9, closing) / (1 / carrierMass + 1 / tacklerMass);
     // (Snack League: SILLY.TACKLE more shove, and the pair leaves the ground before they go down together)
-    const T = PHYS.SILLY.TACKLE, pop = (0.5 + closing * 0.22) * (hit ? 1.5 : 1);
+    const T = PHYS.SILLY.TACKLE, pop = (PHYS.SILLY.POP + closing * PHYS.SILLY.POP_K) * (hit ? 1.5 : 1);
     const runnerVelocity = carrierSpeed.clone().multiplyScalar(0.66).addScaledVector(normal, impulse / carrierMass * 0.58 * T).setY(pop);
     const defenderVelocity = tacklerSpeed.clone().multiplyScalar(0.66).addScaledVector(normal, -impulse / tacklerMass * 0.58 * T).setY(pop * 0.8);
     // Upper-body contact and planted cleats start the rotation before gravity takes over.

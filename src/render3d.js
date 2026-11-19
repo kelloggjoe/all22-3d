@@ -260,7 +260,7 @@ export class Renderer3D {
     switch (k.kind) {
       case "truck": { // the fling: the sim's own shove (up to 24 yd/s behind a big back at full speed), and up he goes
         const f = k.force, push = k.fromVel ? H(k.fromVel).normalize() : away;
-        return { velocity: push.clone().multiplyScalar(1.5 + f * 0.6).setY(Math.min(9, (1.2 + f * 0.24) * S.LIFT)), drive: push.multiplyScalar((2.6 + f * 0.4) * S.DRIVE), planted: 0.6, drop: 0.5, mass: m };
+        return { velocity: push.clone().multiplyScalar(1.5 + f * 0.5).setY(Math.min(7.5, (1.2 + f * 0.24) * S.LIFT)), drive: push.multiplyScalar((2.6 + f * 0.4) * S.DRIVE), planted: 0.6, drop: 0.5, mass: m };
       }
       case "pancake": return { velocity: silly(away.clone().multiplyScalar(2.6 * ratio), 1.3), drive: away.clone().multiplyScalar(3.8 * ratio * S.DRIVE), planted: 0.7, drop: 0.7, mass: m };
       case "stiff": return { velocity: silly(away.clone().multiplyScalar(3 * ratio), 1.1), drive: away.clone().multiplyScalar(3.6 * ratio * S.DRIVE), planted: 0.65, drop: 1, mass: m };
@@ -317,7 +317,7 @@ export class Renderer3D {
         n.normalize();
         const f = THREE.MathUtils.clamp((pending.power || 40) / 50, 0.5, 1.8) * Math.sqrt(impact.tacklerMass / impact.carrierMass);
         this.startFlop(carrier, "hit", {
-          velocity: n.clone().multiplyScalar((2.5 + 4.2 * f) * PHYS.SILLY.LAUNCH).addScaledVector(impact.carrierSpeed.clone().setY(0), 0.25).setY(Math.min(10, (1.6 + 2.8 * f) * PHYS.SILLY.LIFT)),
+          velocity: n.clone().multiplyScalar((2.5 + 4.2 * f) * PHYS.SILLY.LAUNCH).addScaledVector(impact.carrierSpeed.clone().setY(0), 0.25).setY(Math.min(11, (1.6 + 2.8 * f) * PHYS.SILLY.LIFT)),
           drive: n.clone().multiplyScalar((3 + 3.2 * f) * PHYS.SILLY.DRIVE), planted: 0.4, drop: 0.3, mass: impact.carrierMass, speed: 0.8,
         });
         this.startFlop(tackler, "follow", {
