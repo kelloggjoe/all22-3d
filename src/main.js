@@ -379,6 +379,7 @@ class App {
     }
     this.r.clearPlayerPreview();
     if (this.ui.screen === "draft" && this.stage && !this.noRender) this.stage.update(dtr); // the draft card's live snack
+    if (this.coachFace && !this.noRender) this.coachFace.update(dtr); // the coach's talking head (only while it's on screen)
     const isAttract = this.mode !== "game" || !this.world;
     const w = isAttract ? this.attract : this.world;
     if (!w) return;

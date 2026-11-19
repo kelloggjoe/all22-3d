@@ -103,6 +103,18 @@ body.ready .boot { opacity: 0; pointer-events: none; }
 .card:disabled { opacity: .38; cursor: default; }
 .card.coach { width: 150px; justify-content: center; gap: 6px; background: #1b1a10; border-color: #4d4510; }
 .card.coach .ct { font: 600 11px var(--text); letter-spacing: .14em; color: var(--hi); }
+.card.coach { flex-direction: row; align-items: center; width: 290px; gap: 8px; padding: 4px 10px 4px 4px; }
+.card.coach .cface-wrap { position: relative; flex: 0 0 104px; align-self: stretch; min-height: 104px; border-radius: 4px; overflow: hidden; background: radial-gradient(circle at 50% 45%, #4a4320, #15140b 72%); }
+.card.coach .cface { position: absolute; inset: 0; }
+.card.coach .cface > div { position: absolute; inset: 0; }
+.card.coach .cface svg { display: block; width: 100%; height: 100%; }
+.card.coach .cface .open, .card.coach .cface.talking .shut { visibility: hidden; }
+.card.coach .cface.talking .open { visibility: visible; }
+.card.coach .cface .eyes { transform-box: fill-box; transform-origin: center; animation: coach-blink 4.2s infinite; }
+@keyframes coach-blink { 0%, 94%, 100% { transform: scaleY(1); } 97% { transform: scaleY(0.1); } }
+@media (prefers-reduced-motion: reduce) { .card.coach .cface .eyes { animation: none; } }
+.card.coach .ctx { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.card.coach .cq { font: 600 13px/1.25 var(--text); color: var(--ink); font-style: italic; }
 .card.coach .ct kbd { margin: 0 0 0 4px; }
 .card.coach .cn { font: 600 18px var(--disp); line-height: 1.1; }
 .card.coach .cf { font: 600 12px var(--text); color: var(--ink-2); letter-spacing: .08em; }

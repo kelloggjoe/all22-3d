@@ -6,6 +6,7 @@ import { FIELD_W, MID_Y, PHYS } from "./sim/config.js";
 import { Athlete, uniformMaterial } from "./players3d.js";
 import { kookyDNA } from "./kooky.js";
 import { Crumbs } from "./snack.js";
+import { SidelineCoach } from "./coach3d.js";
 import { Tackle3D, Flop3D } from "./tackle3d.js";
 import { PixelStadium, jumboInfo } from "./pixel-stadium.js";
 import { THROW_END, throwReleaseTime } from "./football-moves.js";
@@ -80,6 +81,9 @@ export class Renderer3D {
     this.pixel = new PixelStadium(home, away, kits);
     S.add(this.pixel.group);
     S.add(goalPost(-10, -1), goalPost(110, 1));
+    // the head coaches on their sidelines
+    for (const c of Object.values(this.coaches || {})) c.dispose();
+    this.coaches = { home: new SidelineCoach(S, kits.home, "home"), away: new SidelineCoach(S, kits.away, "away") };
     // pylons
     const pyl = new THREE.MeshStandardMaterial({ color: 0xff6a13, roughness: 0.6 });
     for (const X of [0, -10, 100, 110]) for (const Y of [0, FIELD_W]) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.6, 0.3), pyl); m.position.set(X, 0.3, -Y); S.add(m); }
@@ -212,7 +216,16 @@ export class Renderer3D {
       const direction = w.possession === "home" ? 1 : -1;
       this.throwMotion = { play: w.playNo, qb, lob, spike, heading: Math.atan2(direction * ball.vx, -direction * ball.vy) };
     });
-    this.stopWatchingPlayEvents = () => { stopTackles(); stopThrows(); for (const f of stopKnocks) f(); for (const f of stopCheers) f(); };
+    // the coaches react: his team's big play, he celebrates; the other team's, he sulks
+    const other = (k) => (k === "home" ? "away" : "home");
+    const swing = (team, chance = 1) => { if (!team || Math.random() > chance) return; this.coaches?.[team]?.react(true); if (Math.random() < 0.8) this.coaches?.[other(team)]?.react(false); };
+    const stopCoaches = [
+      w.bus.on("touchdown", (e) => swing(e.team)), w.bus.on("safety", (e) => swing(e.team)), w.bus.on("fieldGoal", (e) => { if (e.good) swing(e.team, 0.8); }),
+      w.bus.on("interception", (e) => swing(e.player?.teamKey)), w.bus.on("sack", (e) => swing(e.tackler?.teamKey, 0.85)),
+      w.bus.on("hitStick", (e) => { if (e.boom) swing(e.player?.teamKey, 0.7); }), w.bus.on("truck", (e) => { if (e.defender && !e.failed) swing(e.player?.teamKey, 0.7); }),
+      w.bus.on("firstDown", () => swing(w.possession, 0.35)),
+    ];
+    this.stopWatchingPlayEvents = () => { stopTackles(); stopThrows(); for (const f of stopKnocks) f(); for (const f of stopCheers) f(); for (const f of stopCoaches) f(); };
   }
 
   // knock some toppings off him (pushed along by whoever hit him)
@@ -445,6 +458,13 @@ export class Renderer3D {
     tackle?.physics.update(dt);
     for (const fl of this.flops.values()) fl.update(dt);
     this.crumbs?.update(dt);
+    if (this.coaches && w.phase !== "init") {
+      // the coaches stay with the line between plays and chase the ball down the sideline during one
+      // (a few yards downfield of the action, where the camera behind the offense can see them)
+      const live = w.phase === "live", home = w.possession === "home", ahead = home ? 1 : -1;
+      const spot = (live ? (home ? w.ball.x : 100 - w.ball.x) : home ? w.los : 100 - w.los) + ahead * (live ? 4 : 8);
+      for (const c of Object.values(this.coaches)) c.update(dt, spot, live);
+    }
     for (const [p, ath] of this.athletes) if (!seen.has(p)) ath.root.visible = false;
     // the ball: in the carrier's hand, in flight, or on the turf
     const b = w.ball, B = this.ballMesh;

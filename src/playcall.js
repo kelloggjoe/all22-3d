@@ -9,6 +9,7 @@ import { ROUTE_LABEL, hotList, currentRoute } from "./sim/controls.js";
 import { cap } from "./sim/bindings.js";
 import { offSVG, defSVG, routeSVG } from "./diagrams.js";
 import { esc } from "./ui.js";
+import { CoachFace, coachLine } from "./coach3d.js";
 
 const ORD = ["", "1ST", "2ND", "3RD", "4TH"];
 function offTag(p) {
@@ -89,7 +90,7 @@ export class CallPanel {
     const nhTag = side === "D" && w.noHuddle && w.noHuddle[w.possession] ? '<span class="tagw">NO HUDDLE</span>' : "";
     const html = `<div class="ph"><span class="sit">${situation(w)}</span><span class="side ${side === "O" ? "o" : "d"}">${side === "O" ? "OFFENSE" : "DEFENSE"}</span>${nhTag}<span class="xbs">${extra}</span></div>
       <div class="tabs">${tabs}</div>
-      <div class="cards">${cards}<button class="card coach" data-i="${cIdx}"><span class="ct">COACH'S PICK ${keyTag("coach")}</span><span class="cn">${esc(coach.name)}</span><span class="cf">${esc(fname(coach.formation))}</span></button></div>
+      <div class="cards">${cards}<button class="card coach" data-i="${cIdx}"><span class="cface-wrap" aria-hidden="true"></span><span class="ctx"><span class="ct">COACH'S PICK ${keyTag("coach")}</span><span class="cq">“${esc(coachLine((side === "O" ? offTag(coach) : defTag(coach))[0], w.playNo + coach.name.length))}”</span><span class="cn">${esc(coach.name)}</span><span class="cf">${esc(fname(coach.formation))}</span></span></button></div>
       <div class="hint">◀ ▶ PLAY · ▲ ▼ FORMATION · ENTER OR 1-${Math.min(9, nP)} CALL · ${esc(cap("coach"))} COACH · ${esc(cap("flip"))} FLIP · ${esc(cap("timeout"))} TIMEOUT</div>`;
     const pickCoach = () => { this.app.audio.sfx("select"); this.app.callPlay(coach, this.flip); };
     const toggleFlip = () => { this.flip = !this.flip; this.app.audio.sfx("blip"); this.renderCall(w, false, this.ui.sel); };
@@ -114,6 +115,13 @@ export class CallPanel {
         else if (i === ex.flip) toggleFlip();
       },
     });
+    // the coach's talking head beside his pick (he says his piece when the call opens)
+    const wrap = this.ui.panel.querySelector(".cface-wrap");
+    if (wrap) {
+      const face = (this.app.coachFace = this.app.coachFace || new CoachFace());
+      wrap.append(face.canvas);
+      if (toCoach) face.show(this.app.kits[side === "O" ? w.possession : w.defTeam]);
+    }
     // ▲ ▼ change formation directly (the cards stay one row)
     this.ui.pOpts.keys.push(["up", () => setForm((this.formIdx + nT - 1) % nT)], ["down", () => setForm((this.formIdx + 1) % nT)]);
   }
