@@ -2,7 +2,7 @@
 // line to goal line (end zones to -10 / 110), Y 0..53.33 across, Z up. three.js: x = X, y = Z, z = -Y, which keeps the
 // original camera's screen left and right (camera3d.js: looking along +X, +Y is on the left).
 import * as THREE from "three";
-import { FIELD_W, MID_Y } from "./sim/config.js";
+import { FIELD_W, MID_Y, PHYS } from "./sim/config.js";
 import { Athlete, uniformMaterial } from "./players3d.js";
 import { kookyDNA } from "./kooky.js";
 import { Crumbs } from "./snack.js";
@@ -256,23 +256,24 @@ export class Renderer3D {
     away.normalize();
     const own = H(k.vel), sp = own.length(), fwd = sp > 0.5 ? own.clone().normalize() : k.dir.clone();
     const ratio = k.from ? THREE.MathUtils.clamp(Math.sqrt(k.from.r.kg / p.r.kg), 0.75, 1.4) : 1;
+    const S = PHYS.SILLY, silly = (v, y) => v.multiplyScalar(S.LAUNCH).setY(y * S.LIFT); // (Snack League: hits are silly)
     switch (k.kind) {
-      case "truck": { // the fling: up to 10 yd/s behind a big back at full speed
+      case "truck": { // the fling: the sim's own shove (up to 24 yd/s behind a big back at full speed), and up he goes
         const f = k.force, push = k.fromVel ? H(k.fromVel).normalize() : away;
-        return { velocity: push.clone().multiplyScalar(1.2 + f * 0.95).setY(1 + f * 0.38), drive: push.multiplyScalar(2.6 + f * 0.55), planted: 0.75, drop: 0.5, mass: m };
+        return { velocity: push.clone().multiplyScalar(1.5 + f * 0.6).setY(Math.min(9, (1.2 + f * 0.24) * S.LIFT)), drive: push.multiplyScalar((2.6 + f * 0.4) * S.DRIVE), planted: 0.6, drop: 0.5, mass: m };
       }
-      case "pancake": return { velocity: away.clone().multiplyScalar(2.6 * ratio).setY(1.1), drive: away.clone().multiplyScalar(3.8 * ratio), planted: 0.85, drop: 0.7, mass: m };
-      case "stiff": return { velocity: away.clone().multiplyScalar(3 * ratio).setY(0.8), drive: away.clone().multiplyScalar(3.6 * ratio), planted: 0.8, drop: 1, mass: m };
+      case "pancake": return { velocity: silly(away.clone().multiplyScalar(2.6 * ratio), 1.3), drive: away.clone().multiplyScalar(3.8 * ratio * S.DRIVE), planted: 0.7, drop: 0.7, mass: m };
+      case "stiff": return { velocity: silly(away.clone().multiplyScalar(3 * ratio), 1.1), drive: away.clone().multiplyScalar(3.6 * ratio * S.DRIVE), planted: 0.65, drop: 1, mass: m };
       case "ankles": { // juked out of his shoes: he keeps lunging where the runner was and goes down on his face
         const side = new THREE.Vector3(-fwd.z, 0, fwd.x).multiplyScalar(Math.random() < 0.5 ? -1 : 1);
         return { velocity: own.clone().multiplyScalar(0.85).setY(0.3), drive: fwd.clone().multiplyScalar(2).addScaledVector(side, 1.4), planted: 0.9, drop: 2, mass: m };
       }
-      case "bounce": return { velocity: away.clone().multiplyScalar(1.6 * ratio).addScaledVector(own, 0.3).setY(0.4), drive: away.clone().multiplyScalar(2.2), planted: 0.7, drop: 1.2, mass: m };
+      case "bounce": return { velocity: away.clone().multiplyScalar(1.6 * ratio * S.LAUNCH).addScaledVector(own, 0.3).setY(0.4 * S.LIFT), drive: away.clone().multiplyScalar(2.2), planted: 0.7, drop: 1.2, mass: m };
       case "dive": // a superman dive on his own momentum: the sim's launch (out and up), the body laid out flat along it
         return { velocity: k.vel.clone(), drive: k.dir.clone().multiplyScalar(4 + sp * 0.25), planted: 0.12, drop: 2.6, mass: m, speed: 1 };
       case "domino": { // bowled over by a flying body: along that body's line, harder the faster it was going
         const push = k.fromVel && H(k.fromVel).lengthSq() > 0.01 ? H(k.fromVel).normalize() : away, f = k.force;
-        return { velocity: push.clone().multiplyScalar(f * 0.6).setY(0.6 + f * 0.12), drive: push.multiplyScalar(2 + f * 0.35), planted: 0.7, drop: 0.7, mass: m };
+        return { velocity: push.clone().multiplyScalar(f * 0.75).setY(Math.min(7, (0.6 + f * 0.12) * S.LIFT)), drive: push.multiplyScalar((2 + f * 0.35) * S.DRIVE), planted: 0.6, drop: 0.7, mass: m };
       }
       case "slide": return { velocity: fwd.clone().multiplyScalar(Math.max(sp * 0.9, 3)).setY(0.2), drive: fwd.clone().multiplyScalar(-2.8), planted: 0, drop: 1.4, mass: m, speed: 0.95 };
       default: return { velocity: own.clone().multiplyScalar(0.7).setY(0.3), drive: fwd.clone().multiplyScalar(2.6), planted: 0.6, drop: 1.6, mass: m }; // a trip / a whiff
@@ -316,8 +317,8 @@ export class Renderer3D {
         n.normalize();
         const f = THREE.MathUtils.clamp((pending.power || 40) / 50, 0.5, 1.8) * Math.sqrt(impact.tacklerMass / impact.carrierMass);
         this.startFlop(carrier, "hit", {
-          velocity: n.clone().multiplyScalar(2.5 + 4.2 * f).addScaledVector(impact.carrierSpeed.clone().setY(0), 0.25).setY(1.6 + 2.8 * f),
-          drive: n.clone().multiplyScalar(3 + 3.2 * f), planted: 0.55, drop: 0.3, mass: impact.carrierMass, speed: 0.8,
+          velocity: n.clone().multiplyScalar((2.5 + 4.2 * f) * PHYS.SILLY.LAUNCH).addScaledVector(impact.carrierSpeed.clone().setY(0), 0.25).setY(Math.min(10, (1.6 + 2.8 * f) * PHYS.SILLY.LIFT)),
+          drive: n.clone().multiplyScalar((3 + 3.2 * f) * PHYS.SILLY.DRIVE), planted: 0.4, drop: 0.3, mass: impact.carrierMass, speed: 0.8,
         });
         this.startFlop(tackler, "follow", {
           velocity: impact.tacklerSpeed.clone().setY(0).multiplyScalar(0.5).setY(0.5),

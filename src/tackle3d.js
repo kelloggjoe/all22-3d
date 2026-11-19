@@ -1,4 +1,5 @@
 import { Matrix4, Quaternion, Vector3 } from "three";
+import { PHYS } from "./sim/config.js";
 
 const STEP = 1 / 120;
 const GRAVITY = 10.73; // yards/s²
@@ -185,8 +186,10 @@ export class Tackle3D {
 
     const closing = Math.max(0, delta.subVectors(tacklerSpeed, carrierSpeed).dot(normal));
     const impulse = Math.min(9, closing) / (1 / carrierMass + 1 / tacklerMass);
-    const runnerVelocity = carrierSpeed.clone().multiplyScalar(0.66).addScaledVector(normal, impulse / carrierMass * 0.58);
-    const defenderVelocity = tacklerSpeed.clone().multiplyScalar(0.66).addScaledVector(normal, -impulse / tacklerMass * 0.58);
+    // (Snack League: SILLY.TACKLE more shove, and the pair leaves the ground before they go down together)
+    const T = PHYS.SILLY.TACKLE, pop = (0.5 + closing * 0.22) * (hit ? 1.5 : 1);
+    const runnerVelocity = carrierSpeed.clone().multiplyScalar(0.66).addScaledVector(normal, impulse / carrierMass * 0.58 * T).setY(pop);
+    const defenderVelocity = tacklerSpeed.clone().multiplyScalar(0.66).addScaledVector(normal, -impulse / tacklerMass * 0.58 * T).setY(pop * 0.8);
     // Upper-body contact and planted cleats start the rotation before gravity takes over.
     const drive = normal.clone().multiplyScalar(1.6 + closing * 0.25 + (hit ? 0.7 : 0));
     this.carrier = new TackleBody(carrier, carrierAt, carrierMass, runnerVelocity, drive, 0.65, 1.25);
@@ -267,7 +270,7 @@ export class Tackle3D {
 // ankles, a dive or a slide, a whiffed tackle. velocity: the whole body's launch (yd/s, three.js axes: y up); drive:
 // how hard the upper body is thrown along a direction (it tips him over that way); planted: how much the cleats stick
 // (a man hit high with his feet planted goes over backwards); drop: how fast the shoulders fall.
-const FLOP_SETTLE = 2.4;
+const FLOP_SETTLE = 3.2;
 export class Flop3D {
   constructor(athlete, kind, { velocity, drive, planted = 0.5, drop = 1.2, mass = 1, speed = 0.9 }) {
     this.kind = kind;
