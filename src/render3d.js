@@ -83,7 +83,7 @@ export class Renderer3D {
     S.add(goalPost(-10, -1), goalPost(110, 1));
     // the head coaches on their sidelines
     for (const c of Object.values(this.coaches || {})) c.dispose();
-    this.coaches = { home: new SidelineCoach(S, kits.home, "home"), away: new SidelineCoach(S, kits.away, "away") };
+    this.coaches = { home: new SidelineCoach(S, kits.home, "home") }; // (your team's coach: you play the home side)
     // pylons
     const pyl = new THREE.MeshStandardMaterial({ color: 0xff6a13, roughness: 0.6 });
     for (const X of [0, -10, 100, 110]) for (const Y of [0, FIELD_W]) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.6, 0.3), pyl); m.position.set(X, 0.3, -Y); S.add(m); }
@@ -228,6 +228,28 @@ export class Renderer3D {
     this.stopWatchingPlayEvents = () => { stopTackles(); stopThrows(); for (const f of stopKnocks) f(); for (const f of stopCheers) f(); for (const f of stopCoaches) f(); };
   }
 
+  // where the coach should stand: the first spot on a sideline, from the action on downfield, that's on screen. He
+  // works his own sideline during a play; between plays, while nobody's looking at him, he takes whichever sideline puts
+  // him closer to the camera (so he's big enough to see).
+  // his middle in frame and his feet above the bottom edge (his outer arm can hang off the side)
+  coachSeen(X, Y) {
+    const cam = this.camera, v = this.coachW || (this.coachW = new THREE.Vector3());
+    v.set(X, 1.5, -Y).project(cam); if (v.z > 1 || Math.abs(v.x) > 0.9 || v.y > 0.9) return false;
+    v.set(X, 0.2, -Y).project(cam); return v.z <= 1 && v.y > -0.95;
+  }
+  coachSpot(c, action, ahead, live) {
+    const cam = this.camera, v = this.coachV || (this.coachV = new THREE.Vector3());
+    cam.updateMatrixWorld();
+    const seen = (X, Y) => this.coachSeen(X, Y);
+    const steps = [2, 4, 6, 8, 10, 12, 15, 18, 22, 26, 30, 35, 40, 0, -3, -6, -10, -15];
+    const find = (Y) => { for (const d of steps) { const X = THREE.MathUtils.clamp(action + ahead * d, 1, 99); if (seen(X, Y)) return X; } return null; };
+    const far = (X, Y) => (X == null ? Infinity : cam.position.distanceTo(v.set(X, 1.5, -Y)));
+    const otherY = c.Y < FIELD_W / 2 ? FIELD_W - c.Y : -(c.Y - FIELD_W);
+    const here = find(c.Y), there = find(otherY);
+    if (!live && there != null && far(there, otherY) < far(here, c.Y) * 0.8 && !seen(c.X, c.Y)) { c.Y = otherY; c.X = there; return there; }
+    if (here != null) return here;
+    return THREE.MathUtils.clamp(action + ahead * 8, 1, 99);
+  }
   // knock some toppings off him (pushed along by whoever hit him)
   spill(w, p, power, by = null) {
     if (!p || power <= 0) return;
@@ -459,11 +481,17 @@ export class Renderer3D {
     for (const fl of this.flops.values()) fl.update(dt);
     this.crumbs?.update(dt);
     if (this.coaches && w.phase !== "init") {
-      // the coaches stay with the line between plays and chase the ball down the sideline during one
-      // (a few yards downfield of the action, where the camera behind the offense can see them)
+      // your coach keeps up with the play down his sideline, always somewhere the camera can see him
       const live = w.phase === "live", home = w.possession === "home", ahead = home ? 1 : -1;
-      const spot = (live ? (home ? w.ball.x : 100 - w.ball.x) : home ? w.los : 100 - w.los) + ahead * (live ? 4 : 8);
-      for (const c of Object.values(this.coaches)) c.update(dt, spot, live);
+      const action = live || w.phase === "dead" ? (home ? w.ball.x : 100 - w.ball.x) : home ? w.los : 100 - w.los;
+      for (const c of Object.values(this.coaches)) {
+        const spot = this.coachSpot(c, action, ahead, live);
+        if (!this.coachSeen(c.X, c.Y) && Math.abs(spot - c.X) > 3) c.X = spot - Math.sign(spot - c.X) * 3; // (off camera, he catches up)
+        // drawn big enough to read from the broadcast camera however far off he is
+        const d = this.camera.position.distanceTo(this.coachV.set(c.X, 1.5, -c.Y)), span = 2 * d * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
+        c.size(THREE.MathUtils.clamp(span * 0.11, 3.3, 8));
+        c.update(dt, spot, live);
+      }
     }
     for (const [p, ath] of this.athletes) if (!seen.has(p)) ath.root.visible = false;
     // the ball: in the carrier's hand, in flight, or on the turf

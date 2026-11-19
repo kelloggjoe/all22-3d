@@ -90,7 +90,8 @@ export class CallPanel {
     const nhTag = side === "D" && w.noHuddle && w.noHuddle[w.possession] ? '<span class="tagw">NO HUDDLE</span>' : "";
     const html = `<div class="ph"><span class="sit">${situation(w)}</span><span class="side ${side === "O" ? "o" : "d"}">${side === "O" ? "OFFENSE" : "DEFENSE"}</span>${nhTag}<span class="xbs">${extra}</span></div>
       <div class="tabs">${tabs}</div>
-      <div class="cards">${cards}<button class="card coach" data-i="${cIdx}"><span class="cface-wrap" aria-hidden="true"></span><span class="ctx"><span class="ct">COACH'S PICK ${keyTag("coach")}</span><span class="cq">“${esc(coachLine((side === "O" ? offTag(coach) : defTag(coach))[0], w.playNo + coach.name.length))}”</span><span class="cn">${esc(coach.name)}</span><span class="cf">${esc(fname(coach.formation))}</span></span></button></div>
+      <div class="cards">${cards}</div>
+      <button class="coachbar" data-i="${cIdx}"><span class="cface-wrap" aria-hidden="true"></span><span class="cbub"><span class="cq">“${esc(coachLine((side === "O" ? offTag(coach) : defTag(coach))[0], w.playNo + coach.name.length))}”</span><span class="cpk">COACH'S PICK <b>${esc(coach.name)}</b> · ${esc(fname(coach.formation))} ${keyTag("coach")}</span></span></button>
       <div class="hint">◀ ▶ PLAY · ▲ ▼ FORMATION · ENTER OR 1-${Math.min(9, nP)} CALL · ${esc(cap("coach"))} COACH · ${esc(cap("flip"))} FLIP · ${esc(cap("timeout"))} TIMEOUT</div>`;
     const pickCoach = () => { this.app.audio.sfx("select"); this.app.callPlay(coach, this.flip); };
     const toggleFlip = () => { this.flip = !this.flip; this.app.audio.sfx("blip"); this.renderCall(w, false, this.ui.sel); };

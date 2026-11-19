@@ -5,14 +5,17 @@ const INK = "#1d1712", SKIN = "#f1c3a4", SKIN_D = "#e2a588", HAIR = "#d9d5ce", H
 const S = `stroke="${INK}" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"`;
 
 // pose: "idle" | "talk" | "cheer" | "pump" | "sulk" | "run1" | "run2" (a running stride) | "flail1" | "flail2" (arms
-// everywhere) | "facepalm" | "head" (hands on his head) | "slam" (the clipboard spiked at his feet)
-// mood: "calm" | "happy" (squinting grin) | "angry" (red, gritted teeth, steam) | "shock" (wide eyes, O mouth) | "sad"
+// everywhere) | "facepalm" | "head" (hands on his head) | "slam" (the clipboard spiked at his feet) | "huff" (bent over,
+// hands on his knees, out of breath)
+// mood: "calm" | "happy" (squinting grin) | "angry" (red, gritted teeth, steam) | "shock" (wide eyes, O mouth) | "sad" |
+// "tired" (flushed, droopy eyes, sweating, gasping)
 // mouth: true = open (for talking)
 export function coachSVG(kit, pose = "idle", { mouth = false, crop = false, mood = pose === "sulk" ? "sad" : "calm" } = {}) {
   const J = kit.jersey, A = kit.accent || "#ffffff", V = kit.helmet || J;
   const tilt = pose === "sulk" || pose === "facepalm" ? 7 : pose === "cheer" ? -4 : pose === "flail1" ? -6 : pose === "flail2" ? 6 : pose === "slam" ? 10 : 0;
-  const sad = mood === "sad", angry = mood === "angry", happy = mood === "happy", shock = mood === "shock";
-  const skin = angry ? "#ee9c84" : SKIN;
+  const sad = mood === "sad", angry = mood === "angry", happy = mood === "happy", shock = mood === "shock", tired = mood === "tired";
+  const skin = angry ? "#ee9c84" : tired ? "#f3ae94" : SKIN;
+  const drop = pose === "huff" ? 22 : 0; // bent over: his head comes down
   const arms = {
     idle: `${arm(52, 152, 40, 236, J)}${clipboard(122, 168, -8)}${arm(168, 152, 156, 214, J)}`,
     talk: `${arm(52, 152, 14, 128, J)}${clipboard(122, 168, -8)}${arm(168, 152, 156, 214, J)}`,
@@ -26,10 +29,11 @@ export function coachSVG(kit, pose = "idle", { mouth = false, crop = false, mood
     facepalm: `${arm(168, 152, 160, 230, J)}${clipboard(146, 222, 58)}${arm(52, 152, 92, 100, J)}`,
     head: `${arm(52, 152, 72, 36, J)}${arm(168, 152, 148, 36, J)}`,
     slam: `${arm(52, 156, 44, 238, J, true)}${arm(168, 156, 176, 238, J, true)}${clipboard(118, 270, 84)}`,
+    huff: `${arm(52, 160, 78, 252, J)}${arm(168, 160, 144, 252, J)}${clipboard(150, 236, 64)}`,
   }[pose] || "";
   const over = ["cheer", "pump", "flail1", "flail2", "facepalm", "head"].includes(pose); // arms in front of his head
   const head = `
-    <g transform="rotate(${tilt} 110 150)">
+    <g transform="translate(0 ${drop}) rotate(${tilt} 110 150)">
       <circle cx="57" cy="97" r="12" fill="${skin}" ${S}/><circle cx="163" cy="97" r="12" fill="${skin}" ${S}/>
       <ellipse cx="110" cy="92" rx="54" ry="55" fill="${skin}" ${S}/>
       ${angry ? `<path d="M64 30 q-8 -10 0 -18 q8 -8 0 -16 M156 30 q8 -10 0 -18 q-8 -8 0 -16 M110 22 q-6 -8 0 -14 q6 -6 0 -12" fill="none" stroke="#f4f4f0" stroke-width="5" stroke-linecap="round" opacity=".9"/>` : ""}
@@ -41,7 +45,7 @@ export function coachSVG(kit, pose = "idle", { mouth = false, crop = false, mood
       <path d="M58 80 Q60 22 110 20 Q160 22 162 80" fill="none" stroke="#26262c" stroke-width="7" stroke-linecap="round"/>
       <circle cx="56" cy="98" r="14" fill="#2c2c33" ${S}/><circle cx="164" cy="98" r="14" fill="#2c2c33" ${S}/>
       ${brows(sad, angry, shock)}
-      <g class="eyes">${happy ? `<path d="M84 99 Q91 90 98 99 M122 99 Q129 90 136 99" fill="none" stroke="${INK}" stroke-width="4" stroke-linecap="round"/>`
+      <g class="eyes">${tired ? `<path d="M84 96 Q91 101 98 96 M122 96 Q129 101 136 96" fill="none" stroke="${INK}" stroke-width="4" stroke-linecap="round"/><path d="M84 95 h14 M122 95 h14" stroke="${skin}" stroke-width="5"/>` : happy ? `<path d="M84 99 Q91 90 98 99 M122 99 Q129 90 136 99" fill="none" stroke="${INK}" stroke-width="4" stroke-linecap="round"/>`
         : shock ? `<circle cx="91" cy="96" r="7.5" fill="#fff" ${S}/><circle cx="129" cy="96" r="7.5" fill="#fff" ${S}/><circle cx="91" cy="96" r="3" fill="${INK}"/><circle cx="129" cy="96" r="3" fill="${INK}"/>`
         : `<circle cx="91" cy="96" r="${angry ? 3.8 : 4.6}" fill="${INK}"/><circle cx="129" cy="96" r="${angry ? 3.8 : 4.6}" fill="${INK}"/>
         <circle cx="92.6" cy="94.4" r="1.5" fill="#fff"/><circle cx="130.6" cy="94.4" r="1.5" fill="#fff"/>`}</g>
@@ -49,7 +53,9 @@ export function coachSVG(kit, pose = "idle", { mouth = false, crop = false, mood
       <circle cx="129" cy="96" r="15" fill="#cfe6ff" fill-opacity=".22" stroke="#2b2b2b" stroke-width="3.5"/>
       <path d="M106 95 Q110 92 114 95 M76 94 L62 92 M144 94 L158 92" fill="none" stroke="#2b2b2b" stroke-width="3"/>
       <ellipse cx="73" cy="116" rx="12" ry="8" fill="${angry ? "#e0574e" : "#ef8a80"}" opacity="${happy || angry ? 0.8 : 0.55}"/><ellipse cx="147" cy="116" rx="12" ry="8" fill="${angry ? "#e0574e" : "#ef8a80"}" opacity="${happy || angry ? 0.8 : 0.55}"/>
-      ${mouthOf(mouth, happy, angry, shock, sad)}
+      ${mouthOf(mouth || tired, happy, angry, shock, sad)}
+      ${tired ? `<path d="M60 70 q-5 9 0 13 q5 -4 0 -13 Z M160 64 q-5 9 0 13 q5 -4 0 -13 Z M150 46 q-4 7 0 10 q4 -3 0 -10 Z" fill="#8fd0ff" stroke="${INK}" stroke-width="2"/>` : ""}
+      ${tired && mouth ? `<g fill="#f4f4f0" opacity=".85"><circle cx="76" cy="166" r="9"/><circle cx="62" cy="176" r="7"/><circle cx="52" cy="186" r="5"/></g>` : ""}
       <path d="M68 120 Q110 100 152 120 Q160 134 148 142 Q141 133 134 143 Q126 134 119 144 Q110 135 101 144 Q94 134 86 143 Q79 133 72 142 Q60 134 68 120 Z" fill="${STACHE}" ${S}/>
       <ellipse cx="110" cy="110" rx="12" ry="10" fill="${SKIN_D}" ${S}/>
       <path d="M64 108 Q76 128 98 138" fill="none" stroke="#26262c" stroke-width="4" stroke-linecap="round"/><circle cx="99" cy="139" r="5" fill="#26262c"/>

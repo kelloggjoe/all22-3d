@@ -22,6 +22,7 @@ const WRAP = new THREE.CylinderGeometry(1, 0.78, 2, 16);
 const CONE_UP = new THREE.ConeGeometry(1, 2, 8);
 const CONE_DOWN = new THREE.ConeGeometry(1, 2, 18).rotateZ(Math.PI);
 const PLATE = new THREE.PlaneGeometry(1, 1);
+const SIZE = 1.38, MID = 0.28; // every snack drawn this much bigger, about this height above the hips (yd)
 const SPRINKLES = ["#ff5f8f", "#ffd23e", "#5ec1f2", "#7be07b", "#ffffff", "#b07cff"];
 const PICKLE = "#4f8f2e";
 const rnd = (seed) => { let s = seed >>> 0 || 1; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); };
@@ -240,8 +241,10 @@ export class SnackBody {
     athlete.root.updateMatrixWorld(true);
     const P = (n) => wp(B[n]);
     const pel = P("pelvis");
-    const at = (bone, geo, hex, x, y, z, radii, q = ID, ink = true) => mount(B[bone], part(geo, hex, ink, true), V(pel.x + x, pel.y + y, pel.z + z), q, radii);
-    const plate = (bone, x, y, z, s, turn) => { const m = new THREE.Mesh(PLATE, numberMat); m.renderOrder = 2; mount(B[bone], m, V(pel.x + x, pel.y + y, pel.z + z), eul(0, turn, 0), V(s, s, 1)); };
+    // the snack is drawn SIZE× bigger than its build numbers, about its middle: it swallows more of the player
+    const P0 = (x, y, z) => V(pel.x + x * SIZE, pel.y + MID + (y - MID) * SIZE, pel.z + z * SIZE);
+    const at = (bone, geo, hex, x, y, z, radii, q = ID, ink = true) => mount(B[bone], part(geo, hex, ink, true), P0(x, y, z), q, radii.multiplyScalar(SIZE));
+    const plate = (bone, x, y, z, s, turn) => { const m = new THREE.Mesh(PLATE, numberMat); m.renderOrder = 2; mount(B[bone], m, P0(x, y, z), eul(0, turn, 0), V(s * SIZE, s * SIZE, 1)); };
     this.pupils = []; this.toppers = [];
 
     // limbs: team sleeves on stick arms with big cartoon gloves, team pants, socks, cleats
@@ -262,11 +265,11 @@ export class SnackBody {
     const fb = face.y > 0.4 ? "spine_03" : "spine_02";
     for (const s of [-1, 1]) {
       const eye = part(SPHERE, "#fbfbf6", true);
-      mount(B[fb], eye, V(pel.x + s * face.sep, pel.y + face.y, pel.z + face.z), ID, V(face.r, face.r * 1.1, face.r * 0.7));
+      mount(B[fb], eye, P0(s * face.sep, face.y, face.z), ID, V(face.r, face.r * 1.1, face.r * 0.7).multiplyScalar(SIZE));
       const pupil = new THREE.Mesh(SPHERE_LO, toon("#15110d")); pupil.scale.set(0.5, 0.5, 0.5); pupil.position.set(0, 0, 0.62); eye.add(pupil);
       this.pupils.push({ m: pupil });
     }
-    mount(B[fb], new THREE.Mesh(TORUS, toon("#2a1f1a")), V(pel.x, pel.y + face.y - face.r * 1.9, pel.z + face.z), eul(0, 0, Math.PI), V(face.r * 1.1, face.r * 0.8, face.r * 0.6));
+    mount(B[fb], new THREE.Mesh(TORUS, toon("#2a1f1a")), P0(0, face.y - face.r * 1.9, face.z), eul(0, 0, Math.PI), V(face.r * 1.1, face.r * 0.8, face.r * 0.6).multiplyScalar(SIZE));
     // a little helmet perched on top, and the number on the back
     const hm = at("spine_03", DOME, kit.helmet, 0, top - 0.02, 0, V(0.11, 0.09, 0.11), eul(0, 0, 0.15));
     hm.add(new THREE.Mesh(new THREE.SphereGeometry(1.02, 4, 10, Math.PI / 2 - 0.15, 0.3, 0, Math.PI / 2), toon(kit.accent)));

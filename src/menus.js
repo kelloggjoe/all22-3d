@@ -2,6 +2,7 @@
 import { TEAM_DEFS, TEAM_BY_KEY, kitsFor, autoDraft, twoWay, schemeOf, DRAFT_ORDER } from "./teams.js";
 import { SNACKS, SNACK_BY_KEY, GROUPS } from "./snacks.js";
 import { snackPortraits, SnackStage } from "./portraits.js";
+import { PageCoach } from "./coach3d.js";
 import { RULES } from "./sim/config.js";
 import { fitOf, NUMBERS } from "./sim/ratings.js";
 import { cap } from "./sim/bindings.js";
@@ -14,21 +15,29 @@ const qName = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 export function showTitle(app) {
   app.ui.showHud(false);
   app.ui.showScreen("title", `
-    <div class="title cover-title">
-      <img class="box" src="assets/cover.jpg" alt="Snack League: Pizza Slice hurdles a burger diving at its legs" width="1200" height="1600">
+    <div class="title">
+      <h1 class="logo"><span class="l1">Snack</span><span class="l2">League</span></h1>
       <div class="menu">
-        <h1 class="sr-only">Snack League</h1>
         <button class="mi go" data-i="0">PLAY</button>
         <button class="mi" data-i="1">HOW TO PLAY</button>
       </div>
-    </div>`, {
-    cls: "night-title cover-screen",
+    </div>
+    <div class="tcoach" aria-hidden="true"><div class="tbub"></div><div class="tbody"></div></div>
+    <div class="reel-tag" aria-hidden="true"><i></i>HIGHLIGHTS</div>`, {
+    cls: "night-title",
     onPick: (i) => {
       app.audio.unlock(); app.audio.sfx("select");
       if (i === 0) showSelect(app);
       else showControls(app, () => showTitle(app));
     },
   });
+  // the coach on the title: he talks you into it, and goes wild at the highlights
+  const kit = app.kits?.home || { jersey: TEAM_DEFS[0].jersey, accent: TEAM_DEFS[0].accent, helmet: TEAM_DEFS[0].helmet };
+  if (!app.titleCoach || app.titleCoachKey !== kit.jersey) { app.titleCoach = new PageCoach(kit); app.titleCoachKey = kit.jersey; }
+  const c = app.titleCoach;
+  app.ui.layer.querySelector(".tbody").append(c.el);
+  c.bubble = app.ui.layer.querySelector(".tbub");
+  c.chatter(["Welcome to Snack League!", "Draft eleven snacks. Win football games.", "Watch the hits on this one!", "I've got a good feeling about this team.", "Press PLAY, kid. Let's go."], 5.5);
 }
 
 const STYLE_NAME = { air: "AIR RAID", ground: "GROUND AND POUND", blitz: "BLITZ HAPPY", trick: "TRICK PLAYS", balanced: "BALANCED" };
@@ -84,7 +93,8 @@ export function showDraft(app, pickU, pickO, st = null, focus = 0) {
     <div class="sh"><span class="st">DRAFT YOUR SNACKS</span><span class="ss">${esc(def.name)} · ${left ? `${left} to go` : "Your eleven play offense and defense"}</span></div>
     <div class="dtop"><div class="dfield"><i class="los"></i>${spots}</div><div class="dcard" aria-live="polite"></div></div>
     <div class="dgroups">${groups}</div>
-    <div class="dact"><button class="mi" data-i="${I_AUTO}">AUTO FILL</button><button class="mi" data-i="${I_CLEAR}">CLEAR</button><button class="mi go" data-i="${I_READY}" ${full ? "" : "disabled"}>READY</button></div>
+    <div class="dfoot"><div class="dcoach"><span class="dcface" aria-hidden="true"></span><span class="dbub" aria-live="polite"></span></div>
+    <div class="dact"><button class="mi" data-i="${I_AUTO}">AUTO FILL</button><button class="mi" data-i="${I_CLEAR}">CLEAR</button><button class="mi go" data-i="${I_READY}" ${full ? "" : "disabled"}>READY</button></div></div>
     <div class="hint">PICK A SPOT, THEN A SNACK · PICK A FILLED SPOT AGAIN TO EMPTY IT · BACKSPACE GOES BACK</div></div>`, {
     cls: "dim draft-screen", sel: focus,
     back: () => showSelect(app, 1, pickU),
@@ -99,11 +109,13 @@ export function showDraft(app, pickU, pickO, st = null, focus = 0) {
         if (prev === st.cur) return;
         st.picks[st.cur] = key;
         if (prev) { if (mine) st.picks[prev] = mine; else delete st.picks[prev]; }
+        st.say = verdict(key, st.cur);
         const k = DRAFT_ORDER.indexOf(st.cur);
         st.cur = [...DRAFT_ORDER.slice(k + 1), ...DRAFT_ORDER.slice(0, k + 1)].find((s) => !st.picks[s]) || st.cur;
+        if (DRAFT_ORDER.every((s) => st.picks[s]) && st.say.mood !== "bad") st.say = { text: "That's my eleven. Let's go win some football games.", mood: "good", n: (st.say.n || 0) + 1 };
         app.audio.sfx("select");
-      } else if (i === I_AUTO) { st.picks = autoDraft(def, st.picks); app.audio.sfx("select"); }
-      else if (i === I_CLEAR) { st.picks = {}; st.cur = "QB"; app.audio.sfx("blip"); }
+      } else if (i === I_AUTO) { st.picks = autoDraft(def, st.picks); app.audio.sfx("select"); st.say = { text: "Not bad. That's about what I'd have done.", mood: "good" }; }
+      else if (i === I_CLEAR) { st.picks = {}; st.cur = "QB"; app.audio.sfx("blip"); st.say = { text: "Starting over? Fine by me. Get me a quarterback.", mood: "calm" }; }
       else { app.audio.sfx("select"); app.lastPicks = { ...st.picks }; showOptions(app, pickU, pickO, st); return; }
       showDraft(app, pickU, pickO, st, i);
     },
@@ -125,6 +137,23 @@ export function showDraft(app, pickU, pickO, st = null, focus = 0) {
     app.stage.show(key, kit, by[key] ? NUMBERS[by[key]] : "");
   }
   card(focus);
+  // the coach, along the bottom: he weighs in on every pick
+  if (!app.draftCoach || app.draftCoachKey !== kit.jersey) { app.draftCoach = new PageCoach(kit, { crop: true }); app.draftCoachKey = kit.jersey; }
+  const coach = app.draftCoach;
+  app.ui.layer.querySelector(".dcface").append(coach.el);
+  coach.bubble = app.ui.layer.querySelector(".dbub");
+  st.say = st.say || { text: "Let's build a team. Start me with a quarterback.", mood: "calm" };
+  coach.bubble.textContent = st.say.text;
+  if (st.saidId !== st.say) { st.saidId = st.say; coach.say(st.say.text, 1.6 + st.say.text.length * 0.035); if (st.say.mood !== "calm") coach.react(st.say.mood); }
+  // what he thinks of a snack at a spot: how it fits there against the best snack in the league for it
+  function verdict(key, slot) {
+    const s = SNACK_BY_KEY[key], L = LABEL[slot], fit = fitOf(s.sp, slot, scheme), best = Math.max(...SNACKS.map((x) => fitOf(x.sp, slot, scheme)));
+    const r = fit / best, pick = (a) => a[Math.floor(Math.random() * a.length)], n = s.name;
+    if (r >= 0.97) return { mood: "good", text: pick([`${n} at ${L}? Perfect. Born for it.`, `Now THAT's a ${L}.`, `${n}! Great pick, kid.`]) };
+    if (r >= 0.89) return { mood: "good", text: pick([`Solid. ${n} can play some ${L}.`, `I like it. ${n} at ${L}.`]) };
+    if (r >= 0.8) return { mood: "calm", text: pick([`Hmm. ${n} at ${L}? I can work with that.`, `Not my first choice at ${L}, but okay.`]) };
+    return { mood: "bad", text: pick([`A ${n} at ${L}?! You're killing me.`, `${n} at ${L}... are you feeling okay?`, `That's a ${n}. At ${L}. Wow.`]) };
+  }
 }
 
 function showOptions(app, pickU, pickO, st) {

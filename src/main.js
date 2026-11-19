@@ -14,6 +14,7 @@ import * as AI from "./sim/ai.js";
 import { TEAM_DEFS, TEAM_BY_KEY, makeSnackTeam, autoDraft, kitsFor, rateSlot } from "./teams.js";
 import { loadAthleteAssets } from "./players3d.js";
 import { Renderer3D } from "./render3d.js";
+import { HighlightReel } from "./highlight.js";
 import { UI } from "./ui.js";
 import { CallPanel, specialOffer, coachFourth, fieldGoalOffer } from "./playcall.js";
 import { showTitle, showPause, showHalftime, showResults } from "./menus.js";
@@ -182,6 +183,13 @@ class App {
     const w = new World({ bus: createBus(), home: a, away: b, seed: this.seed + 3, user: "home", autopilot: true, quarterSec: 600 });
     w.rateSlot = rateSlot;
     this.attract = w; this.attractRosterSeed = this.rosterSeed; w.start();
+    // the highlight reel's big moments: slow motion, a dramatic cut, and the title coach losing his mind
+    this.reel = this.reel || new HighlightReel();
+    const LINES = ["DID YOU SEE THAT?!", "That's football, baby!", "OH! He got LAUNCHED!", "Put that on the jumbotron!", "Ohhh, that's gonna leave a mark!"];
+    const hype = (kind) => { this.reel.event(kind); const c = this.titleCoach; if (c && this.mode !== "game") { c.react("good"); c.say(LINES[Math.floor(Math.random() * LINES.length)], 1.8); c.chatT = 6; } };
+    w.bus.on("touchdown", () => hype("touchdown")); w.bus.on("interception", () => hype("pick"));
+    w.bus.on("truck", (e) => { if (e.defender && !e.failed) hype("truck"); }); w.bus.on("hitStick", (e) => { if (e.boom) hype("hit"); });
+    w.bus.on("tackle", (e) => { if ((e.power || 0) > 16 && Math.random() < 0.5) hype("tackle"); });
     this.kits = kitsFor(a, b);
     a.kit = this.kits.home; b.kit = this.kits.away;
     this.r.setTeams(a, b, this.kits);
@@ -380,6 +388,7 @@ class App {
     this.r.clearPlayerPreview();
     if (this.ui.screen === "draft" && this.stage && !this.noRender) this.stage.update(dtr); // the draft card's live snack
     if (this.coachFace && !this.noRender) this.coachFace.update(dtr); // the coach's talking head (only while it's on screen)
+    for (const c of [this.titleCoach, this.draftCoach]) if (c && !this.noRender) c.update(dtr); // (the title's and the draft board's)
     const isAttract = this.mode !== "game" || !this.world;
     const w = isAttract ? this.attract : this.world;
     if (!w) return;
@@ -387,7 +396,7 @@ class App {
     if (!this.paused && !this.frozen) {
       if (this.hitStop > 0) this.hitStop -= dtr;
       else {
-        this.acc += dtr * (isAttract ? 1 : Number(params.get("speed") || 1));
+        this.acc += dtr * (isAttract ? this.reel.timeScale : Number(params.get("speed") || 1)); // (the highlight reel's slow motion)
         let steps = 0;
         while (this.acc >= DT && steps < 12) {
           w.update(DT);
@@ -413,8 +422,9 @@ class App {
     this.playArt.tick(this.paused ? 0 : dtr);
     const losAbs = w.possession === "home" ? w.los : 100 - w.los, fdAbs = w.possession === "home" ? w.los + w.toGo : 100 - (w.los + w.toGo);
     const showLines = !isAttract && (w.playType === "normal" || w.playType === "two") && w.phase !== "dead" && w.phase !== "over";
-    this.r.sync(w, this.paused ? 0 : dtr, { showLines, losX: losAbs, fdX: w.los + w.toGo < 100 && w.playType === "normal" ? fdAbs : null, showRing: !isAttract && w.phase !== "dead", playArt: isAttract ? null : this.playArt.current(w) });
-    this.r.applyCamera(this.cam);
+    this.r.sync(w, this.paused ? 0 : isAttract ? dtr * this.reel.timeScale : dtr, { showLines, losX: losAbs, fdX: w.los + w.toGo < 100 && w.playType === "normal" ? fdAbs : null, showRing: !isAttract && w.phase !== "dead", playArt: isAttract ? null : this.playArt.current(w) });
+    if (isAttract) { this.reel.update(dtr, w); this.reel.apply(this.r.camera, this.r.W, this.r.H); } // behind the menus: the highlight reel
+    else this.r.applyCamera(this.cam);
     if (!this.noRender) this.r.render();
     // HUD over the frame
     if (!isAttract) {

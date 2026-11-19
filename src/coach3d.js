@@ -13,6 +13,7 @@ const FRAMES = {
   cheer: ["cheer", true, "happy"], pump: ["pump", true, "happy"], wild1: ["flail1", true, "happy"], wild2: ["flail2", true, "happy"],
   rage1: ["flail1", true, "angry"], rage2: ["flail2", true, "angry"], slam: ["slam", false, "angry"], stew: ["idle", false, "angry"],
   facepalm: ["facepalm", false, "sad"], sulk: ["sulk", false, "sad"], aghast: ["head", true, "shock"],
+  huff1: ["huff", true, "tired"], huff2: ["huff", false, "tired"],
 };
 const texCache = new Map();
 // each pose rasterized once per team kit (an SVG drawn into a canvas)
@@ -59,7 +60,7 @@ export class SidelineCoach {
     this.shadow.rotation.x = -Math.PI / 2; this.shadow.scale.set(1.3, 0.6, 1);
     parent.add(this.sprite, this.shadow);
     this.side = side; // "home" on the near sideline (Y < 0), "away" on the far one
-    this.Y = side === "home" ? -4.2 : FIELD_W + 4.2;
+    this.Y = side === "home" ? -2.3 : FIELD_W + 2.3; // (right at the edge of the field, in the coaching box)
     this.X = 50; this.t = 0; this.act = null; this.gab = 0;
   }
   // a big play: his team's (good) or the other team's
@@ -68,44 +69,88 @@ export class SidelineCoach {
     const steps = Array.from({ length: r.n }, () => r.seq).flat();
     this.act = { steps, i: 0, left: steps[0][1], hop: r.hop, t: 0 };
   }
+  // his drawn height (yd): render3d grows him with distance so he always reads on screen
+  size(h) { this.h = h; this.sprite.scale.set(h * ASPECT, h, 1); this.shadow.scale.set(1.3 * h / H, 0.6 * h / H, 1); }
   show(name) { const m = this.sprite.material; if (m.map !== this.tex[name]) { m.map = this.tex[name]; m.needsUpdate = true; } }
   dispose() { this.sprite.material.dispose(); this.shadow.geometry.dispose(); this.shadow.material.dispose(); }
-  // targetX: where the action is in stadium yards (the line of scrimmage, or the ball during a play): he walks the
-  // coaching box to stay with the line, and during a play he runs down the sideline after the ball
+  // targetX: where he should be (render3d picks a spot on his sideline the camera can see, ahead of the action). He runs
+  // there, fast, and when he's run a long way he stops and huffs and puffs, hands on his knees
   update(dt, targetX, live) {
     this.t += dt;
-    const want = THREE.MathUtils.clamp(targetX, live ? 2 : 22, live ? 98 : 78), dx = want - this.X;
+    const want = THREE.MathUtils.clamp(targetX, 1, 99), dx = want - this.X, far = Math.abs(dx);
     let lift = 0, frame = "idle";
-    // chasing the play: up to 8 yd/s, arms pumping (he can't outrun a fast break, but he tries)
-    const chase = live && Math.abs(dx) > 1.5 && !this.act;
-    if (chase) {
-      const sp = Math.min(8, 2 + Math.abs(dx) * 1.4);
-      this.X += Math.sign(dx) * Math.min(Math.abs(dx), dt * sp);
-      this.stride = (this.stride || 0) + dt * sp * 0.9;
-      this.sprite.position.set(this.X, Math.abs(Math.sin(this.stride * Math.PI)) * 0.22, -this.Y);
-      this.show((Math.floor(this.stride) % 2 ? "run2" : "run1") + (dx < 0 ? "L" : ""));
-      this.shadow.position.set(this.X, 0.02, -this.Y);
-      return;
-    }
+    // speed: a big man at full tilt (he speeds up, he slows down)
+    const top = far > 1.2 ? Math.min(17, 4 + far * 2.2) : 0;
+    this.speed = (this.speed || 0) + (top - (this.speed || 0)) * Math.min(1, dt * (top > (this.speed || 0) ? 5 : 7));
+    const step = Math.sign(dx) * Math.min(far, dt * this.speed);
+    this.X += step;
+    this.ran = (this.ran || 0) + Math.abs(step);
+    const running = this.speed > 1.5 && far > 0.4;
     if (this.act) {
       const A = this.act; A.t += dt; A.left -= dt;
       while (A.left <= 0 && A.i < A.steps.length - 1) { A.i++; A.left += A.steps[A.i][1]; }
       frame = A.steps[A.i][0];
       if (A.hop) lift = Math.abs(Math.sin(A.t * 11)) * A.hop;
       if (A.left <= 0) this.act = null;
-    } else if (Math.abs(dx) > 1.2) {
-      this.X += Math.sign(dx) * Math.min(Math.abs(dx), dt * 2.4);
-      lift = Math.abs(Math.sin(this.t * 9)) * 0.08; // a waddle
-    } else if (!live) {
+    } else if (running) {
+      this.stride = (this.stride || 0) + dt * Math.max(3, this.speed) * 0.85;
+      lift = Math.abs(Math.sin(this.stride * Math.PI)) * 0.25;
+      frame = (Math.floor(this.stride) % 2 ? "run2" : "run1") + (dx < 0 ? "L" : "");
+    } else if (this.ran > 14) {
+      // he made it: out of breath, for longer the farther he ran
+      this.huff = Math.min(3.2, 1 + this.ran * 0.04); this.ran = 0;
+    }
+    if (!this.act && !running && this.huff > 0) {
+      this.huff -= dt;
+      frame = Math.floor(this.t * 3.2) % 2 ? "huff1" : "huff2";
+      lift = Math.abs(Math.sin(this.t * 3.2 * Math.PI)) * 0.04;
+    } else if (!this.act && !running && !live) {
       // between plays he barks at somebody now and then
       this.gab -= dt;
       if (this.gab < -2.5 - Math.random() * 3) this.gab = 1.4;
       if (this.gab > 0) frame = Math.floor(this.t * 6) % 2 ? "talk" : "talk2";
     }
     this.show(frame);
-    this.sprite.position.set(this.X, lift, -this.Y);
+    this.sprite.position.set(this.X, lift * (this.h || H) / H, -this.Y); // (his hops scale with his drawn size)
     this.shadow.position.set(this.X, 0.02, -this.Y);
     this.shadow.material.opacity = Math.max(0.08, 0.28 - lift * 0.3);
+  }
+}
+
+// a coach in the page (the title, the draft board): his drawn self in a few frames, talking his lines and cheering
+export class PageCoach {
+  constructor(kit, { crop = false } = {}) {
+    this.el = document.createElement("div"); this.el.className = "pcoach" + (crop ? " crop" : "");
+    this.svgs = {};
+    const add = (name, pose, mouth, mood) => { this.svgs[name] = coachSVG(kit, pose, { mouth, mood, crop }); };
+    add("idle", "idle", false, "calm"); add("talk", "talk", true, "calm"); add("talk2", "talk", false, "calm");
+    add("cheer", "cheer", true, "happy"); add("pump", "pump", true, "happy"); add("wild1", "flail1", true, "happy"); add("wild2", "flail2", true, "happy");
+    add("shock", "head", true, "shock"); add("sulk", "sulk", false, "sad"); add("rage1", "flail1", true, "angry"); add("rage2", "flail2", true, "angry");
+    this.frame = ""; this.t = 0; this.talk = 0; this.act = null; this.bubble = null;
+    this.show("idle");
+  }
+  show(name) { if (name !== this.frame) { this.frame = name; this.el.innerHTML = this.svgs[name]; } }
+  say(text, sec = 2.4) { this.talk = sec; if (this.bubble) { this.bubble.textContent = text; this.bubble.classList.remove("pop"); void this.bubble.offsetWidth; this.bubble.classList.add("pop"); } }
+  react(mood = "good") {
+    const seq = mood === "good" ? (Math.random() < 0.5 ? ["cheer", "pump"] : ["wild1", "wild2"]) : mood === "bad" ? (Math.random() < 0.5 ? ["rage1", "rage2"] : ["shock", "sulk"]) : ["shock", "shock"];
+    this.act = { seq, t: 0, len: mood === "bad" && seq[0] === "shock" ? 2 : 1.8 };
+  }
+  // he talks on his own: a line every few seconds
+  chatter(lines, every = 5) { this.lines = lines; this.every = every; this.chatT = 0.8; this.li = 0; }
+  update(dt) {
+    if (!this.el.isConnected) return;
+    this.t += dt;
+    if (this.lines && !this.act && (this.chatT -= dt) <= 0) { this.say(this.lines[this.li++ % this.lines.length], 2.2); this.chatT = this.every; }
+    if (this.act) {
+      const A = this.act; A.t += dt;
+      const fast = A.seq[0] === "shock" ? 1.2 : 0.18;
+      this.show(A.seq[Math.min(A.seq.length - 1, Math.floor(A.t / fast) % A.seq.length)]);
+      this.el.style.transform = A.seq[0] === "cheer" || A.seq[0] === "wild1" ? `translateY(${-Math.abs(Math.sin(A.t * 11)) * 14}px)` : "";
+      if (A.t > A.len) { this.act = null; this.el.style.transform = ""; }
+      return;
+    }
+    if (this.talk > 0) { this.talk -= dt; this.show(Math.sin(this.t * 22) * Math.sin(this.t * 6.1 + 1) > -0.1 ? "talk" : "talk2"); }
+    else this.show("idle");
   }
 }
 
