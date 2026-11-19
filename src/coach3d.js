@@ -97,8 +97,9 @@ export class SidelineCoach {
       lift = Math.abs(Math.sin(this.stride * Math.PI)) * 0.25;
       frame = (Math.floor(this.stride) % 2 ? "run2" : "run1") + (dx < 0 ? "L" : "");
     } else if (this.ran > 14) {
-      // he made it: out of breath, for longer the farther he ran
-      this.huff = Math.min(3.2, 1 + this.ran * 0.04); this.ran = 0;
+      // he made it: about half the time he's out of breath, for longer the farther he ran
+      if (Math.random() < 0.5) this.huff = Math.min(3.2, 1 + this.ran * 0.04);
+      this.ran = 0;
     }
     if (!this.act && !running && this.huff > 0) {
       this.huff -= dt;

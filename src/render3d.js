@@ -234,6 +234,7 @@ export class Renderer3D {
   // his middle in frame and his feet above the bottom edge (his outer arm can hang off the side)
   coachSeen(X, Y) {
     const cam = this.camera, v = this.coachW || (this.coachW = new THREE.Vector3());
+    if (cam.position.distanceTo(v.set(X, 1.5, -Y)) < 18) return false; // (never right up in the lens: kickoffs put the camera on the sideline)
     v.set(X, 1.5, -Y).project(cam); if (v.z > 1 || Math.abs(v.x) > 0.9 || v.y > 0.9) return false;
     v.set(X, 0.2, -Y).project(cam); return v.z <= 1 && v.y > -0.95;
   }
@@ -487,9 +488,8 @@ export class Renderer3D {
       for (const c of Object.values(this.coaches)) {
         const spot = this.coachSpot(c, action, ahead, live);
         if (!this.coachSeen(c.X, c.Y) && Math.abs(spot - c.X) > 3) c.X = spot - Math.sign(spot - c.X) * 3; // (off camera, he catches up)
-        // drawn big enough to read from the broadcast camera however far off he is
-        const d = this.camera.position.distanceTo(this.coachV.set(c.X, 1.5, -c.Y)), span = 2 * d * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
-        c.size(THREE.MathUtils.clamp(span * 0.11, 3.3, 8));
+        // a fixed size, true to the field (a touch bigger than the players on scrimmage downs; normal on kicks)
+        c.size((w.playType === "normal" || w.playType === "two") && w.phase !== "coin" ? 3.3 : 2.8);
         c.update(dt, spot, live);
       }
     }
