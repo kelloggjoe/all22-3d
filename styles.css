@@ -162,6 +162,12 @@ body.ready .boot { opacity: 0; pointer-events: none; }
 .title .logo .l2 { color: var(--hi); }
 .title .menu { width: min(300px, 100%); }
 .title .menu .go { text-align: left; }
+/* the title: the cover art, with the menu beside it */
+.layer .cover-screen { place-items: center; background: radial-gradient(ellipse at 60% 50%, rgba(6, 11, 19, .55), rgba(6, 11, 19, .92) 75%); }
+.cover-title { width: min(1000px, 100%); display: grid; grid-template-columns: auto minmax(220px, 300px); align-items: end; justify-content: center; gap: clamp(24px, 5vw, 64px); }
+.cover-title .box { display: block; height: min(84vh, 760px); width: auto; aspect-ratio: 3 / 4; border-radius: 6px; box-shadow: 0 30px 80px #000c, 0 0 0 1px #ffffff1f; }
+.cover-title .menu { width: 100%; padding-bottom: 8px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .sel { width: min(1080px, 100%); }
 /* the draft board */
 .layer .draft-screen { place-items: start center; padding-top: 18px; }
@@ -244,6 +250,8 @@ table.stats td:first-child, table.stats th:first-child { text-align: left; color
 @media (max-width: 760px) {
   .layer .night-title { padding-inline: 24px; background: linear-gradient(90deg, #060b13de, #060b1340); }
   .title .logo { font-size: clamp(45px, 13vw, 90px); }
+  .cover-title { grid-template-columns: 1fr; justify-items: center; align-items: start; gap: 16px; }
+  .cover-title .box { height: auto; width: min(78vw, 46vh); }
   .tgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .help .cols { grid-template-columns: 1fr; }
   .bug .dd { min-width: 0; font-size: 14px; }

@@ -14,14 +14,15 @@ const qName = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 export function showTitle(app) {
   app.ui.showHud(false);
   app.ui.showScreen("title", `
-    <div class="title">
-      <h1 class="logo"><span class="l1">Snack</span><span class="l2">League</span></h1>
+    <div class="title cover-title">
+      <img class="box" src="assets/cover.jpg" alt="Snack League: Pizza Slice hurdles a burger diving at its legs" width="1200" height="1600">
       <div class="menu">
+        <h1 class="sr-only">Snack League</h1>
         <button class="mi go" data-i="0">PLAY</button>
         <button class="mi" data-i="1">HOW TO PLAY</button>
       </div>
     </div>`, {
-    cls: "night-title",
+    cls: "night-title cover-screen",
     onPick: (i) => {
       app.audio.unlock(); app.audio.sfx("select");
       if (i === 0) showSelect(app);
