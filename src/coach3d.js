@@ -51,6 +51,16 @@ const SULK = [
   { seq: [["stew", 0.3], ["rage1", 0.2], ["stew", 0.3], ["rage2", 0.2]], n: 3, hop: 0.12 },
 ];
 
+// what he yells from the sideline
+const YELLS = {
+  good: ["THAT'S MY GUY!", "PUT IT ON A T-SHIRT!", "WHO'S HUNGRY NOW?!", "EXTRA CHEESE, BABY!", "SOMEBODY CALL A DENTIST!", "I DREW THAT UP! (I DIDN'T)", "THAT'S HOW MOM MAKES IT!", "FRESH OUT THE OVEN!"],
+  bad: ["MY GRANDMA BLOCKS BETTER!", "ARE YOU KIDDING ME?!", "WHO TAUGHT YOU THAT?! ...OH. ME.", "THAT'S GOING IN THE FRYER!", "I NEED A BIGGER CLIPBOARD.", "STALE! STALE! STALE!", "I'M CALLING YOUR MOTHER."],
+  chatter: ["HUSTLE, YOU BEAUTIFUL BURRITO!", "STAY CRISPY!", "KEEP YOUR SPRINKLES UP!", "WHO ATE MY PLAYBOOK?", "WE PLAY TO THE LAST CRUMB!", "MORE MUSTARD!", "DON'T GET SOGGY OUT THERE!", "EYES UP, PIZZA!", "THAT'S A FLAG! ...RIGHT?", "I SEE YOU, NUMBER 91."],
+  huff: ["*WHEEZE*", "I NEED... A SNACK...", "HOW... IS HE... SO FAST", "NOBODY SAW THAT.", "*HEAVY BREATHING*"],
+  run: ["WAIT UP!", "GO GO GO!", "RUN! RUN! RUN!", "THAT WAY! THAT WAY!"],
+};
+const pickLine = (k, last) => { const a = YELLS[k]; let s; do s = a[Math.floor(Math.random() * a.length)]; while (s === last && a.length > 1); return s; };
+
 export class SidelineCoach {
   constructor(parent, kit, side) {
     this.tex = frames(kit);
@@ -63,8 +73,11 @@ export class SidelineCoach {
     this.Y = side === "home" ? -2.3 : FIELD_W + 2.3; // (right at the edge of the field, in the coaching box)
     this.X = 50; this.t = 0; this.act = null; this.gab = 0;
   }
+  // a speech bubble over his head (main.js draws it where he is on screen)
+  say(kind, sec = 2.2) { this.line = pickLine(kind, this.line); this.lineT = sec; this.quiet = 7 + Math.random() * 7; }
   // a big play: his team's (good) or the other team's
   react(good) {
+    this.say(good ? "good" : "bad", 2.6);
     const set = good ? CHEER : SULK, r = set[Math.floor(Math.random() * set.length)];
     const steps = Array.from({ length: r.n }, () => r.seq).flat();
     this.act = { steps, i: 0, left: steps[0][1], hop: r.hop, t: 0 };
@@ -77,6 +90,9 @@ export class SidelineCoach {
   // there, fast, and when he's run a long way he stops and huffs and puffs, hands on his knees
   update(dt, targetX, live) {
     this.t += dt;
+    if (this.lineT > 0) this.lineT -= dt;
+    this.quiet = (this.quiet ?? 4) - dt;
+    if (!live && this.quiet <= 0 && !(this.lineT > 0)) this.say("chatter"); // between plays he yells something now and then
     const want = THREE.MathUtils.clamp(targetX, 1, 99), dx = want - this.X, far = Math.abs(dx);
     let lift = 0, frame = "idle";
     // speed: a big man at full tilt (he speeds up, he slows down)
@@ -96,9 +112,10 @@ export class SidelineCoach {
       this.stride = (this.stride || 0) + dt * Math.max(3, this.speed) * 0.85;
       lift = Math.abs(Math.sin(this.stride * Math.PI)) * 0.25;
       frame = (Math.floor(this.stride) % 2 ? "run2" : "run1") + (dx < 0 ? "L" : "");
+      if (far > 12 && this.speed > 9 && !(this.lineT > 0) && Math.random() < dt * 0.5) this.say("run", 1.4);
     } else if (this.ran > 14) {
       // he made it: about half the time he's out of breath, for longer the farther he ran
-      if (Math.random() < 0.5) this.huff = Math.min(3.2, 1 + this.ran * 0.04);
+      if (Math.random() < 0.5) { this.huff = Math.min(3.2, 1 + this.ran * 0.04); if (!(this.lineT > 0)) this.say("huff", this.huff); }
       this.ran = 0;
     }
     if (!this.act && !running && this.huff > 0) {

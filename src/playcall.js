@@ -10,6 +10,7 @@ import { cap } from "./sim/bindings.js";
 import { offSVG, defSVG, routeSVG } from "./diagrams.js";
 import { esc } from "./ui.js";
 import { CoachFace, coachLine } from "./coach3d.js";
+import { coinStrip } from "./coin-art.js";
 
 const ORD = ["", "1ST", "2ND", "3RD", "4TH"];
 function offTag(p) {
@@ -44,6 +45,9 @@ export function situation(w) {
   return `${dd} · ${spot}`;
 }
 const keyTag = (id) => (cap(id) ? `<kbd>${esc(cap(id))}</kbd>` : "");
+
+let coinURL = null;
+const COIN = () => (coinURL = coinURL || coinStrip()); // (drawn once)
 
 export class CallPanel {
   constructor(ui, app) { this.ui = ui; this.app = app; this.flip = false; this.hotRec = null; }
@@ -179,7 +183,7 @@ export class CallPanel {
     const opts = !res ? [["heads", "HEADS"], ["tails", "TAILS"]] : [["receive", "RECEIVE", "BALL FIRST"], w.coin && w.coin.kind === "ot" ? ["kick", "KICK", "BALL SECOND"] : ["defer", "DEFER", "BALL IN THE 2ND HALF"]];
     const cards = opts.map(([k, t, s], i) => `<button class="card big" data-i="${i}" data-k="${i + 1}" data-c="${k}"><span class="pk">${i + 1}</span><span class="bt">${t}</span>${s ? `<span class="bs">${s}</span>` : ""}</button>`).join("");
     this.ui.showPanel("coin", `<div class="ph"><span class="sit">COIN TOSS</span><span class="side o">${res ? "YOU WON THE TOSS" : `${esc(opp.abbr)} SAYS: YOU CALL IT`}</span></div>
-      <div class="coinrow"><div class="coin ${res ? "landed" : "spin"}" data-coin>${res && this.coin.result ? (this.coin.result === "heads" ? "H" : "T") : ""}</div><div class="cards">${cards}</div></div>
+      <div class="coinrow"><div class="coin ${res ? `landed ${this.coin.result || "heads"}` : "spin"}" data-coin style="--coin: url(${COIN()})"></div><div class="cards">${cards}</div></div>
       <div class="cres" data-res>${res || ""}</div>`, {
       cls: "small coinp",
       onPick: (i) => {
@@ -203,7 +207,7 @@ export class CallPanel {
     const team = w.teams[e.winner];
     if (e.pending && userWon) { this.renderCoin(w, `<b>${face.toUpperCase()}.</b> ${esc(team.abbr)} WINS THE TOSS`); return; }
     const choice = e.choice ? String(e.choice).toUpperCase() : userWon ? "RECEIVE" : "KICK";
-    const coin = this.ui.panel.querySelector("[data-coin]"); if (coin) { coin.className = "coin landed"; coin.textContent = face === "heads" ? "H" : "T"; }
+    const coin = this.ui.panel.querySelector("[data-coin]"); if (coin) coin.className = `coin landed ${face}`;
     const r = this.ui.panel.querySelector("[data-res]");
     if (r) { r.innerHTML = `<b>${face.toUpperCase()}.</b> ${esc(team.abbr)} WINS THE TOSS AND WILL ${esc(choice)}`; r.classList.add(userWon ? "won" : "lost"); }
     c.done = this.app.t + 2;

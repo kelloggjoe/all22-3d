@@ -95,7 +95,7 @@ function numberTexture(num, fill, edge) {
   if (numCache.has(key)) return numCache.get(key);
   const c = document.createElement("canvas"); c.width = 128; c.height = 128;
   const g = c.getContext("2d");
-  g.font = "700 104px 'Oswald', 'Arial Narrow', sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.font = `${String(num).length > 1 ? 52 : 64}px 'Press Start 2P', monospace`; g.textAlign = "center"; g.textBaseline = "middle";
   g.lineWidth = 10; g.strokeStyle = edge; g.strokeText(String(num), 64, 70);
   g.fillStyle = fill; g.fillText(String(num), 64, 70);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;

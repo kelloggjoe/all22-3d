@@ -157,6 +157,7 @@ class App {
   rerollRosters() { this.rosterSeed = randomSeed(); }
 
   async boot() {
+    try { await document.fonts.load('16px "Press Start 2P"'); } catch (_) { /* (the numbers fall back to monospace) */ }
     await loadAthleteAssets();
     document.body.classList.add("ready");
     this.startAttract();
@@ -221,6 +222,19 @@ class App {
     this.input.resetSprintToggle();
     w.start();
     this.cam.snap();
+  }
+  // the sideline coach's speech bubble, over his head on screen
+  coachBubble(isAttract) {
+    const c = this.r.coaches?.home, el = this.sideBubble || (this.sideBubble = Object.assign(document.createElement("div"), { className: "sbub" }));
+    if (!el.isConnected) document.getElementById("ui").append(el);
+    const o = this.bubbleAt || (this.bubbleAt = { x: 0, y: 0 });
+    const on = !isAttract && c && c.lineT > 0 && !this.ui.screen && this.r.toScreen(c.X, c.Y, (c.h || 3.3) * 1.02, o);
+    el.classList.toggle("on", Boolean(on));
+    if (!on) return;
+    if (el.textContent !== c.line) { el.textContent = c.line; el.classList.remove("pop"); void el.offsetWidth; el.classList.add("pop"); }
+    const left = o.x > this.r.cssW * 0.62; // (the bubble leans toward the middle of the screen)
+    el.classList.toggle("left", left);
+    el.style.transform = `translate(${Math.round(o.x)}px, ${Math.round(o.y)}px)`;
   }
   toTitle() { this.world = null; this.ui.hidePanel(); this.ui.meter(null); this.startAttract(); showTitle(this); }
   quit() { this.paused = false; this.toTitle(); }
@@ -426,6 +440,7 @@ class App {
     if (isAttract) { this.reel.update(dtr, w); this.reel.apply(this.r.camera, this.r.W, this.r.H); } // behind the menus: the highlight reel
     else this.r.applyCamera(this.cam);
     if (!this.noRender) this.r.render();
+    this.coachBubble(isAttract);
     // HUD over the frame
     if (!isAttract) {
       this.ui.updateHud(w, this.hud.pc);
